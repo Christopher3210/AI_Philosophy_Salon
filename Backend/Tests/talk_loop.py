@@ -23,6 +23,7 @@ RUSSELL_SYS = (
 
 def chat_once(system_prompt: str, user_prompt: str) -> str:
     """Send one chat turn to the specified role (system_prompt) and return the reply text."""
+    import random
     resp = client.chat.completions.create(
         model=MODEL_ID,
         messages=[
@@ -31,11 +32,12 @@ def chat_once(system_prompt: str, user_prompt: str) -> str:
         ],
         temperature=0.6,   # lower (e.g., 0.4–0.5) if outputs drift or get too verbose
         max_tokens=128,
+         seed=random.randint(1, 999999)
     )
     return resp.choices[0].message.content.strip()
 
 def main():
-    topic = "Is happiness the highest good?"
+    topic = "What is happiness?"
     turns = 4  
 
     print(f"Host: Today we discuss — {topic}\n")
