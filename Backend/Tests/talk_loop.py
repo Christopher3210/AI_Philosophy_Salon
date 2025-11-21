@@ -30,9 +30,9 @@ def chat_once(system_prompt: str, user_prompt: str) -> str:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        temperature=0.6,   # lower (e.g., 0.4–0.5) if outputs drift or get too verbose
+        temperature=0.6,   # lower if output too verbose
         max_tokens=128,
-         seed=random.randint(1, 999999)
+        seed=random.randint(1, 999999)
     )
     return resp.choices[0].message.content.strip()
 
