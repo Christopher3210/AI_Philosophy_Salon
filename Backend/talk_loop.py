@@ -9,7 +9,7 @@ def main():
     llm = LLMClient()
     agents = AgentsManager()
     tts = SimpleTTS()        
-
+    tts.clear_output()
     controller = TurnTakingController(llm, agents, tts)
 
     asyncio.run(controller.run_dialogue())
