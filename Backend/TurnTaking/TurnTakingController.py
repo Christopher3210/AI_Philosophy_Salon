@@ -4,25 +4,24 @@ class TurnTakingController:
     def __init__(self, llm_client, agents_manager, tts_engine):
         """
         llm_client:     LLMClient instance
-        agents_manager: manages system prompts for philosophers
-        tts_engine:     SimpleTTS instance (Edge-TTS)
+        agents_manager: manages system prompts
+        tts_engine:     SimpleTTS instance
         """
         self.llm = llm_client
         self.agents = agents_manager
         self.tts = tts_engine
 
     async def run_dialogue(self, topic: str = "What is happiness?"):
-        """Main turn-taking loop + optional Q&A mode."""
+        """Main turn-taking loop + Q&A support."""
         print(f"Host: Today we discuss — {topic}\n")
 
         last_msg = f"Host: {topic} Please answer briefly."
         turn = 1
 
-        # ===== Main loop =====
         while True:
             print(f"--- Turn {turn} ---\n")
 
-            # ================== Aristotle ==================
+            # ========== Aristotle ==========
             a_prompt = f"{last_msg}\nAristotle, speak in 1-3 sentences."
             a_reply = self.llm.chat_once(
                 self.agents.get_system_prompt("aristotle"),
@@ -30,10 +29,10 @@ class TurnTakingController:
             )
             print(f"Aristotle: {a_reply}\n")
 
-            # TTS Aristotle (index 1)
-            await self.tts.speak("Aristotle", a_reply, turn, 1)
+            # TTS Aristotle (index=1)
+            await self.tts.speak("Aristotle", a_reply, turn, 1, is_qa=False)
 
-            # ================== Russell ==================
+            # ========== Russell ==========
             r_prompt = (
                 f"Aristotle just said:\n\"{a_reply}\"\n\n"
                 "Russell, respond briefly and challenge one key point."
@@ -44,20 +43,20 @@ class TurnTakingController:
             )
             print(f"Russell: {r_reply}\n")
 
-            # TTS Russell (index 2)
-            await self.tts.speak("Russell", r_reply, turn, 2)
+            # TTS Russell (index=2)
+            await self.tts.speak("Russell", r_reply, turn, 2, is_qa=False)
 
-            # Next turn context
+            # Update next turn state
             last_msg = (
                 f"Russell just said:\n\"{r_reply}\"\n\n"
                 "Aristotle, respond briefly (1-3 sentences)."
             )
 
-            # MENU
+            # ===== MENU =====
             print("Options:")
-            print("  [Enter]  → continue the debate")
-            print("  q        → ask a question")
-            print("  stop     → end the conversation")
+            print("  [Enter] → continue the debate")
+            print("  q       → ask a question")
+            print("  stop    → end the conversation")
 
             choice = input("Your choice: ").strip().lower()
 
@@ -65,9 +64,9 @@ class TurnTakingController:
                 print("\nHost: The conversation is finished. Thank you both.")
                 break
 
-            # ================== Q&A MODE ==================
+            # ===== Q&A MODE =====
             if choice == "q":
-                qa_index = 3   # independent numbering for Q&A
+                qa_index = 3  # index starts from 3 for Q&A
 
                 while True:
                     target = input("Ask whom? (a = Aristotle, r = Russell): ").strip().lower()
@@ -84,23 +83,21 @@ class TurnTakingController:
 
                     question = input(f"Your question to {display_name}: ")
 
-                    # Build prompt
                     sys_prompt = self.agents.get_system_prompt(agent_key)
                     user_prompt = (
-                        "The human host is asking a question during the debate.\n"
+                        "The human host is asking a question.\n"
                         f"Question: {question}\n\n"
-                        "Answer in 1-3 short sentences and stay in character."
+                        "Answer in 1-3 short sentences."
                     )
 
-                    # LLM answer
+                    # LLM response
                     answer = self.llm.chat_once(sys_prompt, user_prompt)
                     print(f"{display_name}: {answer}\n")
 
-                    # Save TTS with independent index
-                    await self.tts.speak(display_name, answer, turn, qa_index)
-                    qa_index += 1  # next Q&A answer increments
+                    # TTS Q&A (index starts at 3)
+                    await self.tts.speak(display_name, answer, turn, qa_index, is_qa=True)
+                    qa_index += 1
 
-                    # Q&A menu
                     print("Question options:")
                     print("  [Enter] → ask another question")
                     print("  back    → return to debate")
@@ -113,9 +110,9 @@ class TurnTakingController:
                         return
 
                     if follow == "back":
-                        break  # exit Q&A, return main debate
+                        break
 
-            # Continue next turn
+            # Next turn
             turn += 1
 
         print("Host: We will stop here.\n")
