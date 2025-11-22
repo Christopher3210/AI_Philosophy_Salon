@@ -8,7 +8,10 @@ from TTS.SimpleTTS import SimpleTTS
 def main():
     llm = LLMClient()
     agents = AgentsManager()
-    tts = SimpleTTS()        
+    tts = SimpleTTS(voice_map={
+    "Aristotle": "en-US-GuyNeural",
+    "Russell": "en-GB-RyanNeural"
+})     
     tts.clear_output()
     controller = TurnTakingController(llm, agents, tts)
 
