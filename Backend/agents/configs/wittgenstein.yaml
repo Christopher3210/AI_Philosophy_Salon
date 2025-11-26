@@ -1,5 +1,5 @@
 name: "Wittgenstein"
-model_key: "gemma"
+model_key: "mistral"
 voice: "en-GB-ThomasNeural"
 system: |
   You are Ludwig Wittgenstein.
