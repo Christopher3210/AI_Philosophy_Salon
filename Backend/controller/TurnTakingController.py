@@ -1,6 +1,8 @@
 # controller/TurnTakingController.py
 
 import asyncio
+from typing import List, Dict, Any
+
 from agents.agents_manager import AgentsManager
 from llm.model_manager import ModelManager
 from tts.SimpleTTS import SimpleTTS
@@ -8,134 +10,126 @@ from tts.SimpleTTS import SimpleTTS
 
 class TurnTakingController:
     """
-    Manages the debate turns among multiple philosophical agents
-    and supports host interruptions and Q&A mode.
+    Simple multi-philosopher debate controller.
+
+    - Uses AgentsManager to get all philosophical agents
+    - Uses ModelManager to call the local LLM (e.g. Mistral)
+    - Optionally uses SimpleTTS to speak each reply
+    - Keeps a sliding window of recent utterances as context
     """
 
-    def __init__(self, model_manager: ModelManager, agents_manager: AgentsManager, tts_engine: SimpleTTS):
-        self.models = model_manager
-        self.agents = agents_manager
-        self.tts = tts_engine
-
-    async def run_dialogue(self, topic: str = "What is happiness?"):
+    def __init__(
+        self,
+        model_manager: ModelManager,
+        agents_manager: AgentsManager,
+        tts_engine: SimpleTTS | None = None,
+        history_window: int = 6,
+    ):
         """
-        Main debate loop with turn taking and Q&A support.
+        Parameters
+        ----------
+        model_manager : ModelManager
+            Wrapper around local HF models (e.g. mistral).
+        agents_manager : AgentsManager
+            Loads Agent objects from YAML configs.
+        tts_engine : SimpleTTS | None
+            If provided, each reply will be synthesized and optionally played.
+        history_window : int
+            Number of most recent utterances to include in the context.
+        """
+        self.model_manager = model_manager
+        self.agents_manager = agents_manager
+        self.tts = tts_engine
+        self.history_window = history_window
+
+        # Cache agent list in a stable order
+        self.agents = self.agents_manager.get_all_agents()
+        if not self.agents:
+            raise RuntimeError("No agents loaded from AgentsManager.")
+
+        # In-memory dialogue history: list of {"agent": name, "response": text}
+        self.history: List[Dict[str, Any]] = []
+
+    # ---------------- internal helpers ----------------
+
+    def _build_context(self) -> str:
+        """
+        Build a short textual context from recent dialogue.
+
+        Only the last `history_window` utterances are used for the prompt,
+        but the full history is stored in self.history.
+        """
+        recent = self.history[-self.history_window :]
+        if not recent:
+            return ""
+
+        lines = [f"{item['agent']}: {item['response']}" for item in recent]
+        return "\n".join(lines)
+
+    # ---------------- main loop ----------------
+
+    async def run_dialogue(self, topic: str, turns: int = 4):
+        """
+        Run a simple round-robin debate on the given topic.
+
+        Each turn, all agents speak once in order.
         """
         print(f"Host: Today we discuss — {topic}\n")
+        print(f"Participants: {', '.join(a.name for a in self.agents)} \n")
 
-        agents = self.agents.get_all_agents()
-        if len(agents) == 0:
-            print("No agents found. Please check your configs.")
-            return
+        for turn_idx in range(turns):
+            print(f"\n========== Turn {turn_idx + 1} ==========\n")
 
-        print("Participants:", ", ".join(a.name for a in agents), "\n")
+            for idx, agent in enumerate(self.agents):
+                print(f"{agent.name} thinking...")
 
-        last_message = f"Host: {topic} Please answer briefly."
-        last_reply = None
-        turn = 1
+                # Build sliding-window context for this reply
+                context = self._build_context()
+                context_block = f"Recent dialogue:\n{context}\n\n" if context else ""
 
-        while True:
-            print(f"========== Turn {turn} ==========\n")
+                user_prompt = (
+                    f"Debate topic: {topic}\n\n"
+                    f"{context_block}"
+                    f"Now respond in the voice of {agent.name}.\n"
+                    f"- Use 1–3 concise sentences.\n"
+                    f"- Engage directly with the previous speakers.\n"
+                    f"- Do not repeat long definitions already given.\n"
+                )
 
-            # Each agent speaks in order
-            for idx, agent in enumerate(agents, start=1):
-                if turn == 1 and idx == 1:
-                    user_prompt = last_message
-                else:
-                    context = last_reply or last_message
-                    user_prompt = (
-                        f"The previous speaker said:\n\"{context}\"\n\n"
-                        f"{agent.name}, respond briefly from your own perspective."
-                    )
-
-                reply = self.models.chat_once(
+                # Call local model
+                reply = self.model_manager.chat_once(
                     model_key=agent.model_key,
                     system_prompt=agent.system_prompt,
                     user_prompt=user_prompt,
-                    max_new_tokens=128,
-                    temperature=0.6,
+                    max_new_tokens=80,
+                    temperature=0.7,
                 )
 
+                # Clean up whitespace
+                reply = reply.replace("\n", " ").strip()
+
+                # Save to agent memory + global history
+                agent.add_memory(user_prompt, reply)
+                self.history.append({"agent": agent.name, "response": reply})
+
+                # Print to console
                 print(f"{agent.name}: {reply}\n")
 
-                agent.add_memory(user_prompt, reply)
+                # Optional: TTS synthesis + playback
+                if self.tts is not None:
+                    try:
+                        # SimpleTTS.speak is async(speaker, text, turn, index, is_qa=False)
+                        await self.tts.speak(
+                            speaker_name=agent.name,
+                            text=reply,
+                            turn=turn_idx,
+                            index=idx,
+                            is_qa=False,
+                        )
+                    except Exception as e:
+                        print(f"[TTS] Error during speak(): {e}")
 
-                await self.tts.speak(agent.name, reply, turn, idx, is_qa=False)
+                # Small async sleep to yield control
+                await asyncio.sleep(0.05)
 
-                last_reply = reply
-
-            # ===== MENU =====
-            print("Options:")
-            print("  [Enter] → continue the debate")
-            print("  q       → ask a question (Q&A)")
-            print("  stop    → end the conversation")
-
-            choice = input("Your choice: ").strip().lower()
-
-            if choice == "stop":
-                print("\nHost: The conversation is finished. Thank you all.")
-                break
-
-            if choice == "q":
-                await self._qa_loop(agents, turn)
-
-            turn += 1
-
-        print("Host: We will stop here.\n")
-
-    async def _qa_loop(self, agents, turn: int):
-        """
-        Q&A mode where the host can ask individual agents questions.
-        """
-        qa_index = 100
-        name_map = {a.name.lower(): a for a in agents}
-
-        while True:
-            print("\nQ&A mode.")
-            print("Available agents:", ", ".join(a.name for a in agents))
-            target_name = input("Ask whom? (type name, or 'back' to return): ").strip()
-
-            if target_name.lower() == "back":
-                print("Returning to debate...\n")
-                break
-
-            agent = name_map.get(target_name.lower())
-            if not agent:
-                print("Host: I did not recognize this name.\n")
-                continue
-
-            question = input(f"Your question to {agent.name}: ")
-
-            user_prompt = (
-                "The human host is asking a question.\n"
-                f"Question: {question}\n\n"
-                "Answer in 1-3 short sentences."
-            )
-
-            answer = self.models.chat_once(
-                model_key=agent.model_key,
-                system_prompt=agent.system_prompt,
-                user_prompt=user_prompt,
-                max_new_tokens=128,
-                temperature=0.6,
-            )
-
-            print(f"{agent.name}: {answer}\n")
-
-            await self.tts.speak(agent.name, answer, turn, qa_index, is_qa=True)
-            qa_index += 1
-
-            print("Q&A options:")
-            print("  [Enter] → ask another question")
-            print("  back    → return to debate")
-            print("  stop    → end conversation")
-
-            follow = input("Your choice: ").strip().lower()
-
-            if follow == "stop":
-                print("\nHost: The conversation is finished. Thank you all.")
-                exit(0)
-
-            if follow == "back":
-                print("Returning to debate...\n")
-                break
+        print("\n======== Debate Finished ========\n")

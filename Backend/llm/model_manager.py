@@ -21,7 +21,6 @@ class ModelManager:
         self.tokenizers: Dict[str, AutoTokenizer] = {}
         self.models: Dict[str, AutoModelForCausalLM] = {}
 
-        # Enable faster attention if available
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     def _get_device(self) -> str:
@@ -41,29 +40,23 @@ class ModelManager:
 
         print(f"\n[ModelManager] Loading model '{model_key}' from '{model_id}' on {device}...\n")
 
-        # Tokenizer caching
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,
             local_files_only=False,
             use_fast=True,
         )
 
-        # Choose dtype
-        if device == "cuda" and torch.cuda.is_available():
-            dtype = torch.float16  # reduce VRAM usage
-        else:
-            dtype = torch.float32
+        # NEW: set dtype instead of deprecated torch_dtype
+        dtype = torch.float16 if (device == "cuda" and torch.cuda.is_available()) else torch.float32
 
-        # Load model w/ caching
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
-            torch_dtype=dtype,
+            dtype=dtype,
             local_files_only=False,
         )
 
         model.to(device)
 
-        # Optional GPU optimization
         if device == "cuda":
             try:
                 model = torch.compile(model)
@@ -74,7 +67,8 @@ class ModelManager:
         self.tokenizers[model_key] = tokenizer
         self.models[model_key] = model
 
-        print(f"[ModelManager] Loaded model '{model_key}' successfully on {device} ({torch.cuda.get_device_name(0) if device=='cuda' else 'CPU'}).")
+        print(f"[ModelManager] Loaded model '{model_key}' successfully on {device} "
+              f"({torch.cuda.get_device_name(0) if device == 'cuda' else 'CPU'}).")
 
     def chat_once(
         self,
