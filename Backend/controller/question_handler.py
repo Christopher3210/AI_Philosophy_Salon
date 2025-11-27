@@ -90,6 +90,16 @@ class QuestionHandler:
             agent.add_memory(user_prompt, reply)
             self.controller.history.append({"agent": agent.name, "response": reply, "is_qa": True})
 
+            # Log Q&A utterance
+            if self.controller.logger:
+                self.controller.logger.log_utterance(
+                    speaker=agent.name,
+                    content=reply,
+                    turn=self.controller.speech_count,
+                    is_qa=True,
+                    metadata={"question": question}
+                )
+
             print(f"{agent.name}: {reply}\n")
 
             # TTS for Q&A

@@ -23,6 +23,11 @@ lmstudio-temp/
 *.gguf
 *.bin
 
+# ---- Backend outputs ----
+Backend/tts_output/
+Backend/logs/
+*.mp3
+
 # ---- Unity (if Unity folders exist) ----
 Library/
 Temp/

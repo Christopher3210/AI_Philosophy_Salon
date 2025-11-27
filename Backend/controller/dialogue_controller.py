@@ -9,6 +9,7 @@ from tts.SimpleTTS import SimpleTTS
 
 from .speaker_selector import SpeakerSelector
 from .interrupt_handler import InterruptHandler
+from .debate_logger import DebateLogger
 
 
 class DialogueController:
@@ -63,6 +64,7 @@ class DialogueController:
         # Initialize sub-modules
         self.speaker_selector = SpeakerSelector(self.agents, self.history)
         self.interrupt_handler = InterruptHandler(self)
+        self.logger = None  # Will be initialized when dialogue starts
 
     def _build_context(self) -> str:
         """
@@ -89,11 +91,15 @@ class DialogueController:
         topic : str
             The philosophical topic to discuss
         """
+        # Initialize logger
+        participant_names = [a.name for a in self.agents]
+        self.logger = DebateLogger(topic, participant_names)
+
         # Print header
         print(f"\n{'='*60}")
         print(f"  AI Philosophy Salon")
         print(f"  Topic: {topic}")
-        print(f"  Participants: {', '.join(a.name for a in self.agents)}")
+        print(f"  Participants: {', '.join(participant_names)}")
         print(f"{'='*60}\n")
         print("💡 Press Enter at any time to interrupt the dialogue.\n")
 
@@ -105,6 +111,9 @@ class DialogueController:
             while not self.should_stop:
                 # Check for interrupt
                 if self.is_interrupted:
+                    # Log interrupt event
+                    self.logger.log_interrupt()
+
                     # Cancel old listener
                     if listener_task and not listener_task.done():
                         listener_task.cancel()
@@ -183,6 +192,14 @@ class DialogueController:
                 self.history.append({"agent": speaker.name, "response": reply})
                 self.speech_count += 1
 
+                # Log utterance
+                self.logger.log_utterance(
+                    speaker=speaker.name,
+                    content=reply,
+                    turn=self.speech_count,
+                    is_qa=False
+                )
+
                 print(f"💬 {speaker.name}: {reply}\n")
 
                 # TTS playback
@@ -231,6 +248,10 @@ class DialogueController:
                 await listener_task
             except asyncio.CancelledError:
                 pass
+
+        # Finalize and export logs
+        self.logger.finalize()
+        self.logger.export_all()
 
         # Show summary
         self._print_summary()
