@@ -161,21 +161,8 @@ class DialogueController:
                     0.7,
                 )
 
-                # Wait for generation, check for interrupt periodically
-                while not generation_task.done():
-                    if self.is_interrupted:
-                        generation_task.cancel()
-                        break
-                    await asyncio.sleep(0.05)
-
-                # If interrupted, skip
-                if self.is_interrupted:
-                    continue
-
-                try:
-                    reply = await generation_task
-                except asyncio.CancelledError:
-                    continue
+                # Wait for generation to complete (no mid-generation interruption)
+                reply = await generation_task
 
                 reply = reply.replace("\n", " ").strip()
 
@@ -202,38 +189,22 @@ class DialogueController:
 
                 print(f"💬 {speaker.name}: {reply}\n")
 
-                # TTS playback
+                # TTS playback (complete before checking interrupt)
                 if self.tts is not None:
                     try:
-                        tts_task = asyncio.create_task(self.tts.speak(
+                        await self.tts.speak(
                             speaker_name=speaker.name,
                             text=reply,
                             turn=self.speech_count,
                             index=0,
                             is_qa=False,
-                        ))
-
-                        # Wait for TTS, allow interruption
-                        while not tts_task.done():
-                            if self.is_interrupted:
-                                tts_task.cancel()
-                                try:
-                                    await tts_task
-                                except asyncio.CancelledError:
-                                    pass
-                                break
-                            await asyncio.sleep(0.05)
-
-                        # If interrupted, skip
-                        if self.is_interrupted:
-                            continue
-
-                        # Complete TTS if not interrupted
-                        if not tts_task.cancelled():
-                            await tts_task
-
+                        )
                     except Exception as e:
                         print(f"[TTS] Error during speak(): {e}")
+
+                # Check for interrupt after speech completes
+                if self.is_interrupted:
+                    continue
 
                 # Small delay before next speech
                 if not self.is_interrupted:
