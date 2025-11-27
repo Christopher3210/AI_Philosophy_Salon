@@ -2,7 +2,7 @@
 
 import asyncio
 from agents.agents_manager import AgentsManager
-from controller.TurnTakingController import TurnTakingController
+from controller import TurnTakingController
 from llm.model_manager import ModelManager
 from tts.SimpleTTS import SimpleTTS
 
