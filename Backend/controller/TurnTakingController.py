@@ -237,12 +237,13 @@ class TurnTakingController:
             while not self.should_stop:
                 # Check for interrupt
                 if self.is_interrupted:
-                    # Cancel old listener
-                    listener_task.cancel()
-                    try:
-                        await listener_task
-                    except asyncio.CancelledError:
-                        pass
+                    # Cancel old listener if it exists and is running
+                    if listener_task and not listener_task.done():
+                        listener_task.cancel()
+                        try:
+                            await listener_task
+                        except asyncio.CancelledError:
+                            pass
 
                     # Handle the interrupt menu
                     await self._handle_interrupt_menu(topic)
@@ -271,14 +272,33 @@ class TurnTakingController:
                     f"- Avoid repeating what has already been said.\n"
                 )
 
-                # Generate response
-                reply = self.model_manager.chat_once(
-                    model_key=speaker.model_key,
-                    system_prompt=speaker.system_prompt,
-                    user_prompt=user_prompt,
-                    max_new_tokens=80,
-                    temperature=0.7,
+                # Generate response (run in executor to allow interruption)
+                loop = asyncio.get_event_loop()
+                generation_task = loop.run_in_executor(
+                    None,
+                    self.model_manager.chat_once,
+                    speaker.model_key,
+                    speaker.system_prompt,
+                    user_prompt,
+                    80,  # max_new_tokens
+                    0.7,  # temperature
                 )
+
+                # Wait for generation, but check for interrupt periodically
+                while not generation_task.done():
+                    if self.is_interrupted:
+                        generation_task.cancel()
+                        break
+                    await asyncio.sleep(0.05)  # Check every 50ms
+
+                # If interrupted during generation, skip this speech
+                if self.is_interrupted:
+                    continue
+
+                try:
+                    reply = await generation_task
+                except asyncio.CancelledError:
+                    continue  # Generation was cancelled
 
                 reply = reply.replace("\n", " ").strip()
 
@@ -299,18 +319,39 @@ class TurnTakingController:
                 # TTS playback
                 if self.tts is not None:
                     try:
-                        await self.tts.speak(
+                        tts_task = asyncio.create_task(self.tts.speak(
                             speaker_name=speaker.name,
                             text=reply,
                             turn=self.speech_count,
                             index=0,
                             is_qa=False,
-                        )
+                        ))
+
+                        # Wait for TTS, but allow interruption
+                        while not tts_task.done():
+                            if self.is_interrupted:
+                                tts_task.cancel()
+                                try:
+                                    await tts_task
+                                except asyncio.CancelledError:
+                                    pass
+                                break
+                            await asyncio.sleep(0.05)  # Check every 50ms
+
+                        # If interrupted, skip to next iteration
+                        if self.is_interrupted:
+                            continue
+
+                        # Complete TTS if not interrupted
+                        if not tts_task.cancelled():
+                            await tts_task
+
                     except Exception as e:
                         print(f"[TTS] Error during speak(): {e}")
 
-                # Small delay before next speech
-                await asyncio.sleep(0.1)
+                # Small delay before next speech (unless interrupted)
+                if not self.is_interrupted:
+                    await asyncio.sleep(0.1)
 
         except asyncio.CancelledError:
             print("\n[Dialogue cancelled]")
