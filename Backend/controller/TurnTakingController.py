@@ -152,15 +152,52 @@ class TurnTakingController:
         Detect which philosophers should respond to the question.
         Uses pattern matching to distinguish addressees from mentioned parties.
         Returns list of agent names, or empty list if all should respond.
+
+        Supports exclusion patterns like "except aristotle" or "not sartre".
         """
         import re
 
         question_lower = question.lower()
 
-        # Pattern 1: Direct address at start (e.g., "Aristotle, ...", "Hey Sartre, ...")
+        # Check for exclusion patterns first (e.g., "except Aristotle", "not Sartre", "everyone but Russell")
+        exclusion_patterns = [
+            r'except\s+(\w+)',
+            r'not\s+(\w+)',
+            r'everyone\s+(?:but|except)\s+(\w+)',
+            r'all\s+(?:but|except)\s+(\w+)',
+        ]
+
+        for pattern in exclusion_patterns:
+            match = re.search(pattern, question_lower)
+            if match:
+                excluded_name = match.group(1)
+                # Return all agents except the excluded one
+                excluded_agents = []
+                for agent in self.agents:
+                    if agent.name.lower() != excluded_name:
+                        excluded_agents.append(agent.name)
+                # Only return if we found a valid exclusion
+                if len(excluded_agents) < len(self.agents):
+                    return excluded_agents
+
+        # Pattern 1: Direct address at start (e.g., "Aristotle, ...", "Hey Sartre, ...", "hello aristotle")
         # This is the strongest signal - only these philosophers should respond
-        direct_address_pattern = r'^(?:hey\s+|hi\s+)?(\w+)(?:\s+and\s+(\w+))?(?:\s*,|\s*:)'
+        direct_address_pattern = r'^(?:hey|hi|hello|greetings)\s+(\w+)(?:\s+and\s+(\w+))?'
         match = re.match(direct_address_pattern, question_lower)
+
+        if match:
+            # Extract names from direct address
+            addressed = [name for name in match.groups() if name]
+            targets = []
+            for agent in self.agents:
+                if agent.name.lower() in addressed:
+                    targets.append(agent.name)
+            if targets:
+                return targets
+
+        # Pattern 1b: Name at start with comma/colon (e.g., "Aristotle, what do you think?")
+        name_first_pattern = r'^(\w+)(?:\s+and\s+(\w+))?(?:\s*,|\s*:)'
+        match = re.match(name_first_pattern, question_lower)
 
         if match:
             # Extract names from direct address
