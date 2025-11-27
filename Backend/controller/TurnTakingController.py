@@ -149,19 +149,67 @@ class TurnTakingController:
 
     def _detect_target_philosophers(self, question: str) -> list:
         """
-        Detect which philosophers are mentioned in the question.
-        Returns list of agent names, or empty list if none/all should respond.
+        Detect which philosophers should respond to the question.
+        Uses pattern matching to distinguish addressees from mentioned parties.
+        Returns list of agent names, or empty list if all should respond.
         """
-        question_lower = question.lower()
-        mentioned = []
+        import re
 
+        question_lower = question.lower()
+
+        # Pattern 1: Direct address at start (e.g., "Aristotle, ...", "Hey Sartre, ...")
+        # This is the strongest signal - only these philosophers should respond
+        direct_address_pattern = r'^(?:hey\s+|hi\s+)?(\w+)(?:\s+and\s+(\w+))?(?:\s*,|\s*:)'
+        match = re.match(direct_address_pattern, question_lower)
+
+        if match:
+            # Extract names from direct address
+            addressed = [name for name in match.groups() if name]
+            targets = []
+            for agent in self.agents:
+                if agent.name.lower() in addressed:
+                    targets.append(agent.name)
+            if targets:
+                return targets
+
+        # Pattern 2: Question directed at specific person (e.g., "what do you think, Aristotle?")
+        trailing_address_pattern = r',\s*(\w+)\s*[?!.]?$'
+        match = re.search(trailing_address_pattern, question_lower)
+
+        if match:
+            addressed_name = match.group(1)
+            for agent in self.agents:
+                if agent.name.lower() == addressed_name:
+                    return [agent.name]
+
+        # Pattern 3: Multiple people with "and" (e.g., "Aristotle and Russell, what do you think?")
+        # Already handled in Pattern 1
+
+        # If no clear addressing pattern, check if only one philosopher is mentioned
+        mentioned = []
         for agent in self.agents:
-            # Check if agent name is mentioned in the question
             name_lower = agent.name.lower()
-            if name_lower in question_lower:
+            # Use word boundary to avoid partial matches
+            if re.search(r'\b' + re.escape(name_lower) + r'\b', question_lower):
                 mentioned.append(agent.name)
 
-        return mentioned
+        # If only one philosopher is mentioned and the question seems directed
+        # (contains question words at the beginning), assume it's for them
+        question_words = ['what', 'how', 'why', 'when', 'where', 'who', 'can', 'could', 'would', 'should']
+        starts_with_question = any(question_lower.strip().startswith(qw) for qw in question_words)
+
+        if len(mentioned) == 1 and starts_with_question:
+            # Likely asking one person about something/someone else
+            # e.g., "what do you think of sartre's opinion, aristotle?"
+            # Check if there's a possessive or "of" construction
+            for agent in self.agents:
+                name_lower = agent.name.lower()
+                # Check for "name," pattern (direct address)
+                if re.search(r'\b' + re.escape(name_lower) + r'\s*,', question_lower):
+                    return [agent.name]
+
+        # Default: if multiple mentioned or unclear, return empty (all respond)
+        return []
 
     async def _handle_player_question(self, topic: str):
         """
