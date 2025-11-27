@@ -147,9 +147,25 @@ class TurnTakingController:
             self.is_interrupted = False
             print("\n>>> Resuming dialogue... <<<\n")
 
+    def _detect_target_philosophers(self, question: str) -> list:
+        """
+        Detect which philosophers are mentioned in the question.
+        Returns list of agent names, or empty list if none/all should respond.
+        """
+        question_lower = question.lower()
+        mentioned = []
+
+        for agent in self.agents:
+            # Check if agent name is mentioned in the question
+            name_lower = agent.name.lower()
+            if name_lower in question_lower:
+                mentioned.append(agent.name)
+
+        return mentioned
+
     async def _handle_player_question(self, topic: str):
         """
-        Handle player question - all philosophers respond.
+        Handle player question - targeted or all philosophers respond.
         """
         loop = asyncio.get_event_loop()
         question = await loop.run_in_executor(None, input, "\nYour question: ")
@@ -161,8 +177,20 @@ class TurnTakingController:
 
         print(f"\n[You ask]: {question}\n")
 
-        # Each philosopher responds to the player's question
-        for idx, agent in enumerate(self.agents):
+        # Detect if question targets specific philosophers
+        target_names = self._detect_target_philosophers(question)
+
+        # Determine who should respond
+        if target_names:
+            # Only mentioned philosophers respond
+            responding_agents = [a for a in self.agents if a.name in target_names]
+            print(f"💡 Directing question to: {', '.join(target_names)}\n")
+        else:
+            # Everyone responds
+            responding_agents = self.agents
+
+        # Each selected philosopher responds to the player's question
+        for idx, agent in enumerate(responding_agents):
             print(f"{agent.name} responding...")
 
             context = self._build_context()
