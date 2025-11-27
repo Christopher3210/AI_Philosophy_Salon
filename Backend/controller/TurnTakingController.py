@@ -10,12 +10,11 @@ from tts.SimpleTTS import SimpleTTS
 
 class TurnTakingController:
     """
-    Simple multi-philosopher debate controller.
+    Free-form multi-philosopher debate controller.
 
-    - Uses AgentsManager to get all philosophical agents
-    - Uses ModelManager to call the local LLM (e.g. Mistral)
-    - Optionally uses SimpleTTS to speak each reply
-    - Keeps a sliding window of recent utterances as context
+    - Philosophers speak freely based on their desire to respond
+    - User can press Enter at any time to interrupt
+    - Supports continuous dialogue flow without rigid turn-taking
     """
 
     def __init__(
@@ -50,6 +49,13 @@ class TurnTakingController:
         # In-memory dialogue history: list of {"agent": name, "response": text}
         self.history: List[Dict[str, Any]] = []
 
+        # Flag to control dialogue flow
+        self.is_interrupted = False
+        self.should_stop = False
+
+        # Counter for speech turns
+        self.speech_count = 0
+
     # ---------------- internal helpers ----------------
 
     def _build_context(self) -> str:
@@ -66,70 +72,262 @@ class TurnTakingController:
         lines = [f"{item['agent']}: {item['response']}" for item in recent]
         return "\n".join(lines)
 
+    async def _select_next_speaker(self, topic: str) -> Any:
+        """
+        Select the next speaker based on simple logic.
+
+        For now, we use a simple approach:
+        - If no one has spoken, first agent starts
+        - Otherwise, pick randomly or based on desire (to be enhanced later)
+        """
+        import random
+
+        # For initial implementation, use weighted random
+        # Later we can add LLM-based desire scoring
+
+        if not self.history:
+            # First speaker - could be any philosopher
+            return random.choice(self.agents)
+
+        # Track recent speakers to avoid monopoly
+        recent_speakers = [item['agent'] for item in self.history[-3:]]
+
+        # Give lower weight to recent speakers
+        weights = []
+        for agent in self.agents:
+            recent_count = recent_speakers.count(agent.name)
+            weight = max(1, 5 - recent_count * 2)  # Reduce weight for recent speakers
+            weights.append(weight)
+
+        # Weighted random selection
+        return random.choices(self.agents, weights=weights, k=1)[0]
+
+    async def _listen_for_interrupt(self):
+        """
+        Background task that listens for Enter key press.
+        Sets interrupt flag when user presses Enter.
+        """
+        loop = asyncio.get_event_loop()
+
+        try:
+            # Wait for Enter key (blocking call in executor)
+            await loop.run_in_executor(None, input, "")
+            if not self.should_stop:
+                self.is_interrupted = True
+                print("\n>>> Interrupting dialogue... <<<\n")
+        except Exception as e:
+            if not self.should_stop:
+                print(f"[Error in interrupt listener]: {e}")
+
+    async def _handle_interrupt_menu(self, topic: str):
+        """
+        Show menu when user interrupts the dialogue.
+        """
+        loop = asyncio.get_event_loop()
+
+        print("\n" + "="*50)
+        print("What would you like to do?")
+        print("  [q] - Ask a question")
+        print("  [e] - End dialogue")
+        print("  [c] - Continue dialogue")
+        print("="*50)
+
+        choice = await loop.run_in_executor(None, input, "Your choice: ")
+        choice = choice.strip().lower()
+
+        if choice == 'q':
+            await self._handle_player_question(topic)
+            # After Q&A, ask again
+            await self._handle_interrupt_menu(topic)
+        elif choice == 'e':
+            self.should_stop = True
+            print("\n======== Dialogue Ended by User ========\n")
+        else:
+            # Continue - reset interrupt flag
+            self.is_interrupted = False
+            print("\n>>> Resuming dialogue... <<<\n")
+
+    async def _handle_player_question(self, topic: str):
+        """
+        Handle player question - all philosophers respond.
+        """
+        loop = asyncio.get_event_loop()
+        question = await loop.run_in_executor(None, input, "\nYour question: ")
+        question = question.strip()
+
+        if not question:
+            print("No question provided.")
+            return
+
+        print(f"\n[You ask]: {question}\n")
+
+        # Each philosopher responds to the player's question
+        for idx, agent in enumerate(self.agents):
+            print(f"{agent.name} responding...")
+
+            context = self._build_context()
+            context_block = f"Recent dialogue:\n{context}\n\n" if context else ""
+
+            user_prompt = (
+                f"Debate topic: {topic}\n\n"
+                f"{context_block}"
+                f"A participant asks: {question}\n\n"
+                f"Respond as {agent.name} in 1-3 concise sentences."
+            )
+
+            reply = self.model_manager.chat_once(
+                model_key=agent.model_key,
+                system_prompt=agent.system_prompt,
+                user_prompt=user_prompt,
+                max_new_tokens=80,
+                temperature=0.7,
+            )
+
+            reply = reply.replace("\n", " ").strip()
+
+            # Remove agent name if it appears at the start of the reply
+            if reply.startswith(agent.name + ":"):
+                reply = reply[len(agent.name) + 1:].strip()
+            elif reply.startswith(agent.name):
+                reply = reply[len(agent.name):].strip()
+                if reply.startswith(":"):
+                    reply = reply[1:].strip()
+
+            agent.add_memory(user_prompt, reply)
+            self.history.append({"agent": agent.name, "response": reply, "is_qa": True})
+
+            print(f"{agent.name}: {reply}\n")
+
+            # TTS for Q&A
+            if self.tts is not None:
+                try:
+                    await self.tts.speak(
+                        speaker_name=agent.name,
+                        text=reply,
+                        turn=self.speech_count,
+                        index=idx,
+                        is_qa=True,
+                    )
+                except Exception as e:
+                    print(f"[TTS] Error during speak(): {e}")
+
+            await asyncio.sleep(0.05)
+
     # ---------------- main loop ----------------
 
-    async def run_dialogue(self, topic: str, turns: int = 4):
+    async def run_dialogue(self, topic: str):
         """
-        Run a simple round-robin debate on the given topic.
+        Run a free-form debate on the given topic.
 
-        Each turn, all agents speak once in order.
+        Philosophers speak continuously based on their desire to respond.
+        User can press Enter at any time to interrupt.
         """
-        print(f"Host: Today we discuss — {topic}\n")
-        print(f"Participants: {', '.join(a.name for a in self.agents)} \n")
+        print(f"\n{'='*60}")
+        print(f"  AI Philosophy Salon")
+        print(f"  Topic: {topic}")
+        print(f"  Participants: {', '.join(a.name for a in self.agents)}")
+        print(f"{'='*60}\n")
+        print("💡 Press Enter at any time to interrupt the dialogue.\n")
 
-        for turn_idx in range(turns):
-            print(f"\n========== Turn {turn_idx + 1} ==========\n")
+        # Start background listener for interrupts
+        listener_task = asyncio.create_task(self._listen_for_interrupt())
 
-            for idx, agent in enumerate(self.agents):
-                print(f"{agent.name} thinking...")
+        try:
+            # Continuous dialogue loop
+            while not self.should_stop:
+                # Check for interrupt
+                if self.is_interrupted:
+                    # Cancel old listener
+                    listener_task.cancel()
+                    try:
+                        await listener_task
+                    except asyncio.CancelledError:
+                        pass
 
-                # Build sliding-window context for this reply
+                    # Handle the interrupt menu
+                    await self._handle_interrupt_menu(topic)
+                    if self.should_stop:
+                        break
+
+                    # Restart listener after handling interrupt
+                    listener_task = asyncio.create_task(self._listen_for_interrupt())
+                    continue
+
+                # Select next speaker
+                speaker = await self._select_next_speaker(topic)
+
+                print(f"\n{speaker.name} is thinking...")
+
+                # Build context
                 context = self._build_context()
                 context_block = f"Recent dialogue:\n{context}\n\n" if context else ""
 
                 user_prompt = (
                     f"Debate topic: {topic}\n\n"
                     f"{context_block}"
-                    f"Now respond in the voice of {agent.name}.\n"
+                    f"Now respond in the voice of {speaker.name}.\n"
                     f"- Use 1–3 concise sentences.\n"
-                    f"- Engage directly with the previous speakers.\n"
-                    f"- Do not repeat long definitions already given.\n"
+                    f"- Engage directly with previous speakers or introduce new perspectives.\n"
+                    f"- Avoid repeating what has already been said.\n"
                 )
 
-                # Call local model
+                # Generate response
                 reply = self.model_manager.chat_once(
-                    model_key=agent.model_key,
-                    system_prompt=agent.system_prompt,
+                    model_key=speaker.model_key,
+                    system_prompt=speaker.system_prompt,
                     user_prompt=user_prompt,
                     max_new_tokens=80,
                     temperature=0.7,
                 )
 
-                # Clean up whitespace
                 reply = reply.replace("\n", " ").strip()
 
-                # Save to agent memory + global history
-                agent.add_memory(user_prompt, reply)
-                self.history.append({"agent": agent.name, "response": reply})
+                # Remove speaker name if it appears at the start of the reply
+                if reply.startswith(speaker.name + ":"):
+                    reply = reply[len(speaker.name) + 1:].strip()
+                elif reply.startswith(speaker.name):
+                    reply = reply[len(speaker.name):].strip()
+                    if reply.startswith(":"):
+                        reply = reply[1:].strip()
 
-                # Print to console
-                print(f"{agent.name}: {reply}\n")
+                speaker.add_memory(user_prompt, reply)
+                self.history.append({"agent": speaker.name, "response": reply})
+                self.speech_count += 1
 
-                # Optional: TTS synthesis + playback
+                print(f"💬 {speaker.name}: {reply}\n")
+
+                # TTS playback
                 if self.tts is not None:
                     try:
-                        # SimpleTTS.speak is async(speaker, text, turn, index, is_qa=False)
                         await self.tts.speak(
-                            speaker_name=agent.name,
+                            speaker_name=speaker.name,
                             text=reply,
-                            turn=turn_idx,
-                            index=idx,
+                            turn=self.speech_count,
+                            index=0,
                             is_qa=False,
                         )
                     except Exception as e:
                         print(f"[TTS] Error during speak(): {e}")
 
-                # Small async sleep to yield control
-                await asyncio.sleep(0.05)
+                # Small delay before next speech
+                await asyncio.sleep(0.1)
 
-        print("\n======== Debate Finished ========\n")
+        except asyncio.CancelledError:
+            print("\n[Dialogue cancelled]")
+        finally:
+            # Clean up listener task
+            listener_task.cancel()
+            try:
+                await listener_task
+            except asyncio.CancelledError:
+                pass
+
+        # Show summary
+        print(f"\n{'='*60}")
+        print(f"  Dialogue Summary")
+        print(f"  Total exchanges: {len(self.history)}")
+        print(f"  Speeches per philosopher:")
+        for agent in self.agents:
+            count = sum(1 for item in self.history if item['agent'] == agent.name)
+            print(f"    - {agent.name}: {count}")
+        print(f"{'='*60}\n")

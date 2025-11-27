@@ -27,7 +27,7 @@ def main():
         history_window=8
     )
 
-    asyncio.run(controller.run_dialogue(topic="What is the meaning of freedom?", turns=5))
+    asyncio.run(controller.run_dialogue(topic="What is the meaning of freedom?"))
 
 
 if __name__ == "__main__":
