@@ -109,7 +109,7 @@ class DialogueController:
         try:
             # Continuous dialogue loop
             while not self.should_stop:
-                # Check for interrupt
+                # Check for interrupt FIRST
                 if self.is_interrupted:
                     # Log interrupt event
                     self.logger.log_interrupt()
@@ -130,6 +130,10 @@ class DialogueController:
                     # Restart listener
                     listener_task = asyncio.create_task(self.interrupt_handler.listen_for_interrupt())
                     continue
+
+                # Check if should stop before starting new generation
+                if self.should_stop:
+                    break
 
                 # Select next speaker
                 speaker = self.speaker_selector.select_next_speaker()
@@ -188,6 +192,10 @@ class DialogueController:
                 )
 
                 print(f"💬 {speaker.name}: {reply}\n")
+
+                # Check if should stop before TTS playback
+                if self.should_stop:
+                    break
 
                 # TTS playback (complete before checking interrupt)
                 if self.tts is not None:

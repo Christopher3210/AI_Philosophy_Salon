@@ -69,6 +69,7 @@ class InterruptHandler:
             await self.handle_interrupt_menu(topic)
         elif choice == 'e':
             self.controller.should_stop = True
+            self.controller.is_interrupted = False  # Reset interrupt flag
             print("\n======== Dialogue Ended by User ========\n")
         else:
             # Continue - reset interrupt flag
