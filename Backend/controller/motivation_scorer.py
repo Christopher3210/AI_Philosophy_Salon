@@ -14,12 +14,12 @@ class MotivationScorer:
     and updates each agent's motivation score accordingly.
     """
 
-    # Scoring rules (can be tuned)
-    SCORE_REFUTED = 3.0          # When someone's view is challenged
-    SCORE_NAME_MENTIONED = 2.0   # When someone's name is mentioned
-    SCORE_PER_SILENT_TURN = 0.5  # Accumulated per turn of silence
-    SCORE_CONFLICT = 3.0         # When strong semantic conflict detected
-    RANDOM_RANGE = (0.0, 1.0)    # Random factor for unpredictability
+    # Base scoring rules (adjusted by conviviality)
+    BASE_SCORE_REFUTED = 3.0          # When someone's view is challenged
+    BASE_SCORE_NAME_MENTIONED = 2.0   # When someone's name is mentioned
+    BASE_SCORE_PER_SILENT_TURN = 0.5  # Accumulated per turn of silence
+    BASE_SCORE_CONFLICT = 3.0         # When strong semantic conflict detected
+    RANDOM_RANGE = (0.0, 1.0)         # Random factor for unpredictability
 
     def __init__(self, model_manager):
         """
@@ -35,7 +35,8 @@ class MotivationScorer:
         speaker_name: str,
         text: str,
         all_agents: List[Agent],
-        recent_history: List[dict]
+        recent_history: List[dict],
+        conviviality: float = 0.5
     ):
         """
         Analyze a new utterance and update all agents' motivation scores.
@@ -50,22 +51,33 @@ class MotivationScorer:
             All participating agents
         recent_history : list of dict
             Recent dialogue history for context (format: {'agent': name, 'response': text})
+        conviviality : float
+            Debate friendliness (0.0 = confrontational, 1.0 = friendly)
+            Lower conviviality amplifies conflict-related motivation
         """
         try:
+            # Adjust scores based on conviviality
+            # Low conviviality → higher conflict motivation (range: 1.5x to 4.5x)
+            conflict_multiplier = 1.5 - conviviality
+            score_refuted = self.BASE_SCORE_REFUTED * conflict_multiplier
+            score_conflict = self.BASE_SCORE_CONFLICT * conflict_multiplier
+            score_mentioned = self.BASE_SCORE_NAME_MENTIONED  # Not affected by conviviality
+            score_silent = self.BASE_SCORE_PER_SILENT_TURN    # Not affected by conviviality
+
             # 1. Detect if someone's view was refuted
             refuted_agent = self._detect_refutation(text, all_agents, recent_history)
             if refuted_agent:
-                refuted_agent.motivation_score += self.SCORE_REFUTED
+                refuted_agent.motivation_score += score_refuted
 
             # 2. Detect name mentions
             for agent in all_agents:
                 if agent.name != speaker_name and self._is_name_mentioned(agent.name, text):
-                    agent.motivation_score += self.SCORE_NAME_MENTIONED
+                    agent.motivation_score += score_mentioned
 
             # 3. Detect strong conflict (opposing viewpoint)
             opponent = self._detect_conflict(speaker_name, text, all_agents, recent_history)
             if opponent:
-                opponent.motivation_score += self.SCORE_CONFLICT
+                opponent.motivation_score += score_conflict
 
             # 4. Update silence counters and add silence motivation
             for agent in all_agents:
@@ -74,7 +86,7 @@ class MotivationScorer:
                 else:
                     agent.turns_since_last_speech += 1
                     # Gradual motivation increase for silent agents
-                    agent.motivation_score += self.SCORE_PER_SILENT_TURN
+                    agent.motivation_score += score_silent
 
             # 5. Add random factor to all agents for unpredictability
             for agent in all_agents:

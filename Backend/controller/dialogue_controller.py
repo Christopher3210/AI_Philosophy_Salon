@@ -11,6 +11,7 @@ from .speaker_selector import SpeakerSelector
 from .interrupt_handler import InterruptHandler
 from .debate_logger import DebateLogger
 from .motivation_scorer import MotivationScorer
+from .stance_analyzer import StanceAnalyzer
 
 
 class DialogueController:
@@ -31,6 +32,7 @@ class DialogueController:
         agents_manager: AgentsManager,
         tts_engine: SimpleTTS | None = None,
         history_window: int = 6,
+        conviviality: float = 0.5,
     ):
         """
         Parameters
@@ -43,11 +45,14 @@ class DialogueController:
             Optional TTS engine for speech synthesis
         history_window : int
             Number of recent utterances to include in context
+        conviviality : float
+            Debate friendliness (0.0 = confrontational, 1.0 = friendly)
         """
         self.model_manager = model_manager
         self.agents_manager = agents_manager
         self.tts = tts_engine
         self.history_window = history_window
+        self.conviviality = conviviality
 
         # Cache agent list
         self.agents = self.agents_manager.get_all_agents()
@@ -66,6 +71,7 @@ class DialogueController:
         self.speaker_selector = SpeakerSelector(self.agents, self.history)
         self.interrupt_handler = InterruptHandler(self)
         self.motivation_scorer = MotivationScorer(self.model_manager)
+        self.stance_analyzer = StanceAnalyzer(self.model_manager)
         self.logger = None  # Will be initialized when dialogue starts
 
     def _build_context(self) -> str:
@@ -142,6 +148,19 @@ class DialogueController:
 
                 print(f"\n{speaker.name} is thinking...")
 
+                # Analyze stance toward recent statements
+                stance = self.stance_analyzer.analyze_stance(
+                    agent=speaker,
+                    recent_history=self.history[-3:],  # Last 3 turns for context
+                    conviviality=self.conviviality
+                )
+
+                # Get tone instruction based on stance and conviviality
+                tone_instruction = self.stance_analyzer.get_tone_instruction(
+                    stance=stance,
+                    conviviality=self.conviviality
+                )
+
                 # Build context
                 context = self._build_context()
                 context_block = f"Recent dialogue:\n{context}\n\n" if context else ""
@@ -151,7 +170,7 @@ class DialogueController:
                     f"{context_block}"
                     f"Now respond in the voice of {speaker.name}.\n"
                     f"- Use 1–3 concise sentences.\n"
-                    f"- Engage directly with previous speakers or introduce new perspectives.\n"
+                    f"- {tone_instruction}\n"
                     f"- Avoid repeating what has already been said.\n"
                 )
 
@@ -202,7 +221,8 @@ class DialogueController:
                     speaker_name=speaker.name,
                     text=reply,
                     all_agents=self.agents,
-                    recent_history=self.history[-5:]  # Last 5 turns for context
+                    recent_history=self.history[-5:],  # Last 5 turns for context
+                    conviviality=self.conviviality
                 )
 
                 print(f"💬 {speaker.name}: {reply}\n")
