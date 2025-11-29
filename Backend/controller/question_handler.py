@@ -57,6 +57,11 @@ class QuestionHandler:
 
         # Each selected philosopher responds to the player's question
         for idx, agent in enumerate(responding_agents):
+            # Check for interrupt before each response
+            if self.controller.is_interrupted or self.controller.should_stop:
+                print("\n[Q&A interrupted by user]\n")
+                break
+
             print(f"{agent.name} responding...")
 
             context = self.controller._build_context()
@@ -69,13 +74,23 @@ class QuestionHandler:
                 f"Respond as {agent.name} in 1-3 concise sentences."
             )
 
-            reply = self.controller.model_manager.chat_once(
-                model_key=agent.model_key,
-                system_prompt=agent.system_prompt,
-                user_prompt=user_prompt,
-                max_new_tokens=80,
-                temperature=0.7,
+            # Generate response asynchronously to allow interrupts
+            generation_task = loop.run_in_executor(
+                None,
+                self.controller.model_manager.chat_once,
+                agent.model_key,
+                agent.system_prompt,
+                user_prompt,
+                80,
+                0.7,
             )
+
+            reply = await generation_task
+
+            # Check for interrupt after generation
+            if self.controller.is_interrupted or self.controller.should_stop:
+                print("\n[Q&A interrupted by user]\n")
+                break
 
             reply = reply.replace("\n", " ").strip()
 
@@ -102,6 +117,10 @@ class QuestionHandler:
 
             print(f"{agent.name}: {reply}\n")
 
+            # Check for interrupt before TTS
+            if self.controller.is_interrupted or self.controller.should_stop:
+                break
+
             # TTS for Q&A
             if self.controller.tts is not None:
                 try:
@@ -114,5 +133,9 @@ class QuestionHandler:
                     )
                 except Exception as e:
                     print(f"[TTS] Error during speak(): {e}")
+
+            # Check for interrupt after TTS
+            if self.controller.is_interrupted or self.controller.should_stop:
+                break
 
             await asyncio.sleep(0.05)
