@@ -77,7 +77,10 @@ class QuestionHandler:
                 f"Debate topic: {topic}\n\n"
                 f"{context_block}"
                 f"A participant asks: {question}\n\n"
-                f"Answer this question directly in 1-3 concise sentences, speaking in first person."
+                f"Answer this question directly in 1-3 concise sentences.\n"
+                f"- Speak in first person using 'I'\n"
+                f"- Do NOT introduce yourself or say 'I am {agent.name}'\n"
+                f"- Jump straight to your answer"
             )
 
             # Generate response asynchronously to allow interrupts
