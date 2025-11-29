@@ -44,28 +44,43 @@ class TargetDetector:
         if excluded:
             return excluded
 
-        # Priority 2: Direct address with greeting
+        # Priority 2: Check for "others" pattern (all philosophers)
+        if self._check_others_pattern(question_lower):
+            return []  # Empty list means everyone responds
+
+        # Priority 3: Direct address with greeting
         targets = self._check_greeting_patterns(question_lower)
         if targets:
             return targets
 
-        # Priority 3: Name at start with comma/colon
+        # Priority 4: Name at start with comma/colon
         targets = self._check_name_first_pattern(question_lower)
         if targets:
             return targets
 
-        # Priority 4: Trailing address
+        # Priority 5: Trailing address
         targets = self._check_trailing_address(question_lower)
         if targets:
             return targets
 
-        # Priority 5: Single mention in question
+        # Priority 6: Single mention in question
         targets = self._check_single_mention(question_lower)
         if targets:
             return targets
 
         # Default: all respond
         return []
+
+    def _check_others_pattern(self, question_lower: str) -> bool:
+        """Check for 'others' pattern indicating all should respond."""
+        others_patterns = [
+            r'\bother[s\']?\b',      # others, other's, other
+            r'\beveryone\b',          # everyone
+            r'\ball\b',              # all
+            r'\brest\b',             # rest
+            r'\beverybody\b',        # everybody
+        ]
+        return any(re.search(pattern, question_lower) for pattern in others_patterns)
 
     def _check_exclusion_patterns(self, question_lower: str) -> List[str]:
         """Check for exclusion patterns like 'except aristotle'."""

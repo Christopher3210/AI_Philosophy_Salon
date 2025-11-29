@@ -74,7 +74,7 @@ class QuestionHandler:
                 f"Debate topic: {topic}\n\n"
                 f"{context_block}"
                 f"A participant asks: {question}\n\n"
-                f"Respond as {agent.name} in 1-3 concise sentences."
+                f"Answer this question directly in 1-3 concise sentences, speaking in first person."
             )
 
             # Generate response asynchronously to allow interrupts
