@@ -59,10 +59,12 @@ class QuestionHandler:
         if target_names:
             # Only mentioned philosophers respond
             responding_agents = [a for a in self.controller.agents if a.name in target_names]
-            print(f"💡 Directing question to: {', '.join(target_names)}\n")
+            print(f"💡 LLM detected target: {', '.join(target_names)}\n")
         else:
             # Everyone responds
             responding_agents = self.controller.agents
+            all_names = [a.name for a in responding_agents]
+            print(f"💡 LLM detected target: Everyone ({', '.join(all_names)})\n")
 
         # Each selected philosopher responds to the player's question
         for idx, agent in enumerate(responding_agents):

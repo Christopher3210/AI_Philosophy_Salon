@@ -195,8 +195,11 @@ Reply with ONLY the names or "ALL":"""
 
             response = response.strip().upper()
 
+            print(f"[Target Detection] LLM response: '{response}'")
+
             # Parse response
             if "ALL" in response:
+                print(f"[Target Detection] Interpreted as: Everyone")
                 return []  # Empty list means everyone responds
 
             # Try to extract names
@@ -204,6 +207,11 @@ Reply with ONLY the names or "ALL":"""
             for agent in self.agents:
                 if agent.name.upper() in response:
                     targets.append(agent.name)
+
+            if targets:
+                print(f"[Target Detection] Interpreted as: {', '.join(targets)}")
+            else:
+                print(f"[Target Detection] Could not parse response, defaulting to everyone")
 
             return targets if targets else None
 
