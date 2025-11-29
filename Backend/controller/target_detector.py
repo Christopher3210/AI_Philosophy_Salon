@@ -30,6 +30,8 @@ class TargetDetector:
         """
         Detect which philosophers should respond to the question.
 
+        Uses LLM-based intelligent detection for accurate semantic understanding.
+
         Parameters
         ----------
         question : str
@@ -40,44 +42,13 @@ class TargetDetector:
         list of str
             List of agent names that should respond, or empty list if all should respond
         """
-        question_lower = question.lower()
-
-        # Priority 1: Check for exclusion patterns
-        excluded = self._check_exclusion_patterns(question_lower)
-        if excluded:
-            return excluded
-
-        # Priority 2: Check for "others" pattern (all philosophers)
-        if self._check_others_pattern(question_lower):
-            return []  # Empty list means everyone responds
-
-        # Priority 3: Direct address with greeting
-        targets = self._check_greeting_patterns(question_lower)
-        if targets:
-            return targets
-
-        # Priority 4: Name at start with comma/colon
-        targets = self._check_name_first_pattern(question_lower)
-        if targets:
-            return targets
-
-        # Priority 5: Trailing address
-        targets = self._check_trailing_address(question_lower)
-        if targets:
-            return targets
-
-        # Priority 6: Single mention in question
-        targets = self._check_single_mention(question_lower)
-        if targets:
-            return targets
-
-        # Priority 7: LLM-based intelligent detection (fallback for unclear cases)
+        # Use LLM for all target detection
         if self.model_manager:
             targets = self._llm_based_detection(question)
-            if targets is not None:  # None means LLM detection failed
+            if targets is not None:
                 return targets
 
-        # Default: all respond
+        # Fallback: all respond if LLM detection fails
         return []
 
     def _check_others_pattern(self, question_lower: str) -> bool:

@@ -170,10 +170,11 @@ class DialogueController:
                 user_prompt = (
                     f"Debate topic: {topic}\n\n"
                     f"{context_block}"
-                    f"Now respond in the voice of {speaker.name}.\n"
+                    f"Respond to this debate directly in first person.\n"
                     f"- Use 1–3 concise sentences.\n"
                     f"- {tone_instruction}\n"
                     f"- Avoid repeating what has already been said.\n"
+                    f"- Do NOT say 'As {speaker.name}' or refer to yourself in third person.\n"
                 )
 
                 # Generate response
