@@ -8,10 +8,10 @@ class SpeakerSelector:
     """
     Selects the next speaker in a free-form dialogue.
 
-    Uses weighted random selection to:
-    - Prevent monopolization (reduce weight for recent speakers)
-    - Maintain natural conversation flow
-    - Allow for future enhancements (LLM-based desire scoring)
+    Uses weighted random selection combining:
+    - Anti-monopoly mechanism (reduce weight for recent speakers)
+    - Event-driven motivation scores (refutation, name mention, conflict, silence)
+    - Random factor for natural unpredictability
     """
 
     def __init__(self, agents, history: List[Dict[str, Any]]):
@@ -30,6 +30,9 @@ class SpeakerSelector:
         """
         Select the next speaker based on weighted random selection.
 
+        Combines anti-monopoly weights with event-driven motivation scores
+        for more natural debate dynamics.
+
         Returns
         -------
         Agent
@@ -37,19 +40,32 @@ class SpeakerSelector:
         """
         # First speaker: completely random
         if not self.history:
-            return random.choice(self.agents)
+            selected = random.choice(self.agents)
+            selected.turns_since_last_speech = 0
+            return selected
 
         # Track recent speakers (last 3 utterances)
         recent_speakers = [item['agent'] for item in self.history[-3:]]
 
-        # Calculate weights for each agent
+        # Calculate combined weights for each agent
         weights = []
         for agent in self.agents:
+            # 1. Anti-monopoly weight (prevent one agent from dominating)
             recent_count = recent_speakers.count(agent.name)
-            # Weight formula: max(1, 5 - count * 2)
-            # More recent speeches = lower weight
-            weight = max(1, 5 - recent_count * 2)
-            weights.append(weight)
+            anti_monopoly_weight = max(1, 5 - recent_count * 2)
+
+            # 2. Motivation score (event-driven: refutation, mention, conflict, silence)
+            motivation_factor = 1.0 + agent.motivation_score
+
+            # 3. Combined weight
+            final_weight = anti_monopoly_weight * motivation_factor
+            weights.append(final_weight)
 
         # Weighted random selection
-        return random.choices(self.agents, weights=weights, k=1)[0]
+        selected = random.choices(self.agents, weights=weights, k=1)[0]
+
+        # Reset selected agent's motivation score after being chosen
+        selected.motivation_score = 0.0
+        selected.turns_since_last_speech = 0
+
+        return selected

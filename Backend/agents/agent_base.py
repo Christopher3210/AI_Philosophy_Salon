@@ -12,6 +12,10 @@ class Agent:
         self.voice = voice or "en-US-AriaNeural"
         self.memory: list[dict] = []
 
+        # Motivation system fields
+        self.motivation_score: float = 0.0         # Accumulated motivation to speak
+        self.turns_since_last_speech: int = 0      # Silence duration tracker
+
     def add_memory(self, user_input: str, response: str):
         """
         Append a memory entry for future context use.

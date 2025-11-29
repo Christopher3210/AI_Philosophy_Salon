@@ -10,6 +10,7 @@ from tts.SimpleTTS import SimpleTTS
 from .speaker_selector import SpeakerSelector
 from .interrupt_handler import InterruptHandler
 from .debate_logger import DebateLogger
+from .motivation_scorer import MotivationScorer
 
 
 class DialogueController:
@@ -64,6 +65,7 @@ class DialogueController:
         # Initialize sub-modules
         self.speaker_selector = SpeakerSelector(self.agents, self.history)
         self.interrupt_handler = InterruptHandler(self)
+        self.motivation_scorer = MotivationScorer(self.model_manager)
         self.logger = None  # Will be initialized when dialogue starts
 
     def _build_context(self) -> str:
@@ -189,6 +191,14 @@ class DialogueController:
                     content=reply,
                     turn=self.speech_count,
                     is_qa=False
+                )
+
+                # Update motivation scores based on this utterance
+                self.motivation_scorer.analyze_utterance(
+                    speaker_name=speaker.name,
+                    text=reply,
+                    all_agents=self.agents,
+                    recent_history=self.history[-5:]  # Last 5 turns for context
                 )
 
                 print(f"💬 {speaker.name}: {reply}\n")
