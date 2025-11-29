@@ -51,20 +51,25 @@ class TargetDetector:
         if recent_history and len(recent_history) > 0:
             last_speaker = recent_history[-1].get('agent')
 
-        # Direct keyword matching for obvious "everyone" cases
+        # 1. Check for "everyone/all" patterns
         everyone_keywords = ['everyone', 'everybody', 'all of you', 'you all']
-        if any(keyword in question_lower for keyword in everyone_keywords):
-            # If "except" + specific name mentioned, let LLM handle it
-            if 'except' in question_lower:
-                # Check if any agent name is mentioned (e.g., "everyone except aristotle")
+        # Also check for standalone "all" (but be careful with "all of" vs just "all")
+        has_everyone = any(keyword in question_lower for keyword in everyone_keywords)
+        if not has_everyone and ' all ' in question_lower or question_lower.startswith('all ') or question_lower.endswith(' all'):
+            has_everyone = True
+
+        if has_everyone:
+            # Check for explicit exclusions: "except [name]" or "but [name]"
+            if 'except' in question_lower or ' but ' in question_lower:
+                # Check if specific name mentioned (e.g., "everyone except aristotle", "all but russell")
                 if any(agent.name.lower() in question_lower for agent in self.agents):
-                    print(f"[Target Detection] 'everyone except [name]' detected, using LLM")
+                    print(f"[Target Detection] 'everyone/all except/but [name]' detected, using LLM")
                     # Fall through to LLM detection below
                 else:
-                    # "except" without specific name, treat as everyone
+                    # "except/but" without specific name, treat as everyone
                     print(f"[Target Detection] Keyword match: Everyone")
                     return []
-            # Check if it's "everyone else/others/rest" - exclude last speaker
+            # Check for contextual exclusions: "else", "others", "rest"
             elif last_speaker and any(kw in question_lower for kw in ['else', 'other', 'rest']):
                 targets = [a.name for a in self.agents if a.name != last_speaker]
                 print(f"[Target Detection] Keyword match: Everyone except {last_speaker} → {', '.join(targets)}")
@@ -73,7 +78,29 @@ class TargetDetector:
                 print(f"[Target Detection] Keyword match: Everyone")
                 return []  # Empty list = everyone
 
-        # Use LLM for ambiguous cases
+        # 2. Check for standalone exclusion patterns (without "everyone/all")
+        # "the rest", "the others", "others" - exclude last speaker
+        standalone_exclusion_patterns = [
+            ('the rest', 'the rest'),
+            ('the others', 'the others'),
+            (r'\bothers\b', 'others'),  # word boundary to avoid "mothers", "brothers"
+        ]
+
+        if last_speaker:
+            for pattern, display_name in standalone_exclusion_patterns:
+                if pattern.startswith(r'\b'):  # regex pattern
+                    import re
+                    if re.search(pattern, question_lower):
+                        targets = [a.name for a in self.agents if a.name != last_speaker]
+                        print(f"[Target Detection] Keyword match: '{display_name}' → Everyone except {last_speaker} → {', '.join(targets)}")
+                        return targets
+                else:  # simple string match
+                    if pattern in question_lower:
+                        targets = [a.name for a in self.agents if a.name != last_speaker]
+                        print(f"[Target Detection] Keyword match: '{display_name}' → Everyone except {last_speaker} → {', '.join(targets)}")
+                        return targets
+
+        # 3. Use LLM for ambiguous cases (specific names, pronouns, etc.)
         if self.model_manager:
             targets = self._llm_based_detection(question, last_speaker=last_speaker)
             if targets is not None:
