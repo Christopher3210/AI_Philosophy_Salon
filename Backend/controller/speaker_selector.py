@@ -44,13 +44,23 @@ class SpeakerSelector:
             selected.turns_since_last_speech = 0
             return selected
 
-        # Track recent speakers (last 3 utterances)
+        # Get last speaker - MUST exclude them from speaking again immediately
+        last_speaker_name = self.history[-1]['agent']
+
+        # Create candidate pool - exclude the person who just spoke
+        candidates = [a for a in self.agents if a.name != last_speaker_name]
+
+        if not candidates:
+            # Fallback: if somehow no candidates (shouldn't happen with multiple agents)
+            candidates = self.agents
+
+        # Track recent speakers for anti-monopoly (last 3 utterances)
         recent_speakers = [item['agent'] for item in self.history[-3:]]
 
-        # Calculate combined weights for each agent
+        # Calculate combined weights for each candidate
         weights = []
-        for agent in self.agents:
-            # 1. Anti-monopoly weight (prevent one agent from dominating)
+        for agent in candidates:
+            # 1. Anti-monopoly weight (prevent one agent from dominating over multiple turns)
             recent_count = recent_speakers.count(agent.name)
             anti_monopoly_weight = max(1, 5 - recent_count * 2)
 
@@ -61,8 +71,8 @@ class SpeakerSelector:
             final_weight = anti_monopoly_weight * motivation_factor
             weights.append(final_weight)
 
-        # Weighted random selection
-        selected = random.choices(self.agents, weights=weights, k=1)[0]
+        # Weighted random selection from candidates only
+        selected = random.choices(candidates, weights=weights, k=1)[0]
 
         # Reset selected agent's motivation score after being chosen
         selected.motivation_score = 0.0
