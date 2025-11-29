@@ -1,6 +1,7 @@
 # main.py
 
 import asyncio
+import time
 from agents.agents_manager import AgentsManager
 from controller import TurnTakingController
 from llm.model_manager import ModelManager
@@ -50,6 +51,9 @@ def main():
             print("Invalid input. Please try again.")
 
     print(f"\n✓ Debate intensity set to: {intensity_name} (conviviality: {conviviality})\n")
+
+    # Small delay to clear input buffer before starting dialogue
+    time.sleep(0.5)
 
     # 5. Create controller with chosen conviviality
     controller = TurnTakingController(
