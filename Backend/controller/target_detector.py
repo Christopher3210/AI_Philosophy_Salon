@@ -155,8 +155,6 @@ class TargetDetector:
         """
         Use LLM to intelligently detect who should respond.
 
-        This is a fallback for cases where pattern matching is unclear.
-
         Returns
         -------
         list of str or None
@@ -167,8 +165,8 @@ class TargetDetector:
 
         context_info = ""
         if last_speaker:
-            context_info = f"\nLast speaker: {last_speaker}"
-            context_info += f"\n- 'others', 'everyone else', 'rest' means ALL EXCEPT {last_speaker}"
+            context_info = f"\n\nContext: {last_speaker} just spoke."
+            context_info += f"\n- If the question says 'others', 'everyone else', or 'rest', exclude {last_speaker} from your response."
 
         prompt = f"""Analyze who should respond to this question in a philosophical debate.
 
@@ -177,68 +175,43 @@ Question: "{question}"
 Available philosophers: {names_str}{context_info}
 
 Instructions:
-- If the question addresses ALL philosophers, reply with: ALL
-- If the question addresses ALL EXCEPT the last speaker, list everyone except that person
-- If the question addresses specific philosopher(s), reply with their name(s) separated by commas
-- Consider direct names, pronouns, or contextual addressing
+- Reply with the comma-separated names of philosophers who should respond
+- If everyone should respond, list all their names
+- If specific philosophers are addressed, list only those names
+- Consider direct addressing, pronouns like 'you', and contextual references
 
-Reply with ONLY the names or "ALL":"""
+Reply with ONLY the names (comma-separated):"""
 
         try:
             response = self.model_manager.chat_once(
                 model_key="mistral",
-                system_prompt="You are a debate analyzer. Respond concisely with only names or 'ALL'.",
+                system_prompt="You are a debate analyzer. Respond with only comma-separated philosopher names.",
                 user_prompt=prompt,
-                max_new_tokens=20,
+                max_new_tokens=30,
                 temperature=0.1
             )
 
-            response = response.strip().upper()
-
+            response = response.strip()
             print(f"[Target Detection] LLM response: '{response}'")
 
-            # Parse response
-            if "ALL" in response:
-                # First check if response explicitly says "EXCEPT" or "BUT"
-                if "EXCEPT" in response or "BUT" in response:
-                    # Extract the name(s) after EXCEPT/BUT
-                    excluded_names = []
-                    for agent in self.agents:
-                        if agent.name.upper() in response:
-                            excluded_names.append(agent.name)
-
-                    if excluded_names:
-                        # Return everyone except the excluded name(s)
-                        targets = [a.name for a in self.agents if a.name not in excluded_names]
-                        print(f"[Target Detection] Interpreted as: Everyone except {', '.join(excluded_names)} → {', '.join(targets)}")
-                        return targets
-
-                # Check if "others" or "everyone else" was used - exclude last speaker
-                others_keywords = ['other', 'else', 'rest']
-                question_lower = question.lower()
-
-                if last_speaker and any(kw in question_lower for kw in others_keywords):
-                    # Exclude the last speaker
-                    targets = [a.name for a in self.agents if a.name != last_speaker]
-                    print(f"[Target Detection] Interpreted as: Everyone except {last_speaker} → {', '.join(targets)}")
-                    return targets
-                else:
-                    print(f"[Target Detection] Interpreted as: Everyone")
-                    return []  # Empty list means everyone responds
-
-            # Try to extract names
+            # Extract names mentioned in response
             targets = []
             for agent in self.agents:
-                if agent.name.upper() in response:
+                if agent.name.lower() in response.lower():
                     targets.append(agent.name)
 
+            # If all philosophers mentioned, return empty list (everyone responds)
+            if len(targets) == len(self.agents):
+                print(f"[Target Detection] Everyone responds")
+                return []
+
             if targets:
-                print(f"[Target Detection] Interpreted as: {', '.join(targets)}")
+                print(f"[Target Detection] Specific targets: {', '.join(targets)}")
+                return targets
             else:
                 print(f"[Target Detection] Could not parse response, defaulting to everyone")
-
-            return targets if targets else None
+                return []
 
         except Exception as e:
             print(f"[TargetDetector] LLM detection failed: {e}")
-            return None
+            return []

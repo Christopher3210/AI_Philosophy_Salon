@@ -95,7 +95,7 @@ class QuestionHandler:
                 agent.model_key,
                 agent.system_prompt,
                 user_prompt,
-                80,
+                150,
                 0.7,
             )
 

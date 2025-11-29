@@ -192,7 +192,7 @@ class DialogueController:
                     speaker.model_key,
                     speaker.system_prompt,
                     user_prompt,
-                    80,
+                    150,
                     0.7,
                 )
 
