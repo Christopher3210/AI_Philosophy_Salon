@@ -61,8 +61,8 @@ class InterruptHandler:
         choice = await loop.run_in_executor(None, input, "Your choice: ")
         choice = choice.strip().lower()
 
-        # Small delay to allow input buffer to clear
-        await asyncio.sleep(0.1)
+        # Delay to allow input buffer to clear and prevent spurious interrupts
+        await asyncio.sleep(0.3)
 
         if choice == 'q':
             # Import here to avoid circular dependency

@@ -26,7 +26,7 @@ class TargetDetector:
         self.agents = agents
         self.model_manager = model_manager
 
-    def detect_targets(self, question: str) -> List[str]:
+    def detect_targets(self, question: str, recent_history: List = None) -> List[str]:
         """
         Detect which philosophers should respond to the question.
 
@@ -36,15 +36,22 @@ class TargetDetector:
         ----------
         question : str
             The user's question
+        recent_history : list, optional
+            Recent dialogue history to provide context (e.g., who just spoke)
 
         Returns
         -------
         list of str
             List of agent names that should respond, or empty list if all should respond
         """
+        # Get last speaker from history for context
+        last_speaker = None
+        if recent_history and len(recent_history) > 0:
+            last_speaker = recent_history[-1].get('agent')
+
         # Use LLM for all target detection
         if self.model_manager:
-            targets = self._llm_based_detection(question)
+            targets = self._llm_based_detection(question, last_speaker=last_speaker)
             if targets is not None:
                 return targets
 
@@ -144,7 +151,7 @@ class TargetDetector:
 
         return []
 
-    def _llm_based_detection(self, question: str) -> List[str] | None:
+    def _llm_based_detection(self, question: str, last_speaker: str = None) -> List[str] | None:
         """
         Use LLM to intelligently detect who should respond.
 
@@ -158,16 +165,21 @@ class TargetDetector:
         agent_names = [a.name for a in self.agents]
         names_str = ", ".join(agent_names)
 
+        context_info = ""
+        if last_speaker:
+            context_info = f"\nLast speaker: {last_speaker}"
+            context_info += f"\n- 'others', 'everyone else', 'rest' means ALL EXCEPT {last_speaker}"
+
         prompt = f"""Analyze who should respond to this question in a philosophical debate.
 
 Question: "{question}"
 
-Available philosophers: {names_str}
+Available philosophers: {names_str}{context_info}
 
 Instructions:
 - If the question addresses ALL philosophers, reply with: ALL
+- If the question addresses ALL EXCEPT the last speaker, list everyone except that person
 - If the question addresses specific philosopher(s), reply with their name(s) separated by commas
-- Consider phrases like "others", "rest", "everyone" as addressing ALL
 - Consider direct names, pronouns, or contextual addressing
 
 Reply with ONLY the names or "ALL":"""

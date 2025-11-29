@@ -49,8 +49,11 @@ class QuestionHandler:
 
         print(f"\n[You ask]: {question}\n")
 
-        # Detect if question targets specific philosophers
-        target_names = self.target_detector.detect_targets(question)
+        # Detect if question targets specific philosophers (with context)
+        target_names = self.target_detector.detect_targets(
+            question,
+            recent_history=self.controller.history
+        )
 
         # Determine who should respond
         if target_names:
