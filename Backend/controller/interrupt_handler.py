@@ -58,8 +58,14 @@ class InterruptHandler:
         print("  [c] - Continue dialogue")
         print("="*50)
 
-        choice = await loop.run_in_executor(None, input, "Your choice: ")
-        choice = choice.strip().lower()
+        # Keep asking until valid choice
+        choice = None
+        while choice not in ['q', 'e', 'c']:
+            user_input = await loop.run_in_executor(None, input, "Your choice (q/e/c): ")
+            choice = user_input.strip().lower()
+
+            if choice not in ['q', 'e', 'c']:
+                print("Invalid choice. Please enter 'q', 'e', or 'c'.")
 
         # Delay to allow input buffer to clear and prevent spurious interrupts
         await asyncio.sleep(0.3)
