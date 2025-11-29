@@ -22,7 +22,10 @@ class QuestionHandler:
             Reference to the main controller
         """
         self.controller = dialogue_controller
-        self.target_detector = TargetDetector(self.controller.agents)
+        self.target_detector = TargetDetector(
+            self.controller.agents,
+            model_manager=self.controller.model_manager
+        )
 
     async def handle_player_question(self, topic: str):
         """

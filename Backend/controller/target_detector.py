@@ -14,14 +14,17 @@ class TargetDetector:
     - Multiple targets (e.g., "aristotle and russell")
     """
 
-    def __init__(self, agents):
+    def __init__(self, agents, model_manager=None):
         """
         Parameters
         ----------
         agents : list
             List of Agent objects
+        model_manager : ModelManager, optional
+            For LLM-based intelligent target detection
         """
         self.agents = agents
+        self.model_manager = model_manager
 
     def detect_targets(self, question: str) -> List[str]:
         """
@@ -67,6 +70,12 @@ class TargetDetector:
         targets = self._check_single_mention(question_lower)
         if targets:
             return targets
+
+        # Priority 7: LLM-based intelligent detection (fallback for unclear cases)
+        if self.model_manager:
+            targets = self._llm_based_detection(question)
+            if targets is not None:  # None means LLM detection failed
+                return targets
 
         # Default: all respond
         return []
@@ -163,3 +172,58 @@ class TargetDetector:
             return mentioned
 
         return []
+
+    def _llm_based_detection(self, question: str) -> List[str] | None:
+        """
+        Use LLM to intelligently detect who should respond.
+
+        This is a fallback for cases where pattern matching is unclear.
+
+        Returns
+        -------
+        list of str or None
+            List of agent names, empty list for all, or None if detection failed
+        """
+        agent_names = [a.name for a in self.agents]
+        names_str = ", ".join(agent_names)
+
+        prompt = f"""Analyze who should respond to this question in a philosophical debate.
+
+Question: "{question}"
+
+Available philosophers: {names_str}
+
+Instructions:
+- If the question addresses ALL philosophers, reply with: ALL
+- If the question addresses specific philosopher(s), reply with their name(s) separated by commas
+- Consider phrases like "others", "rest", "everyone" as addressing ALL
+- Consider direct names, pronouns, or contextual addressing
+
+Reply with ONLY the names or "ALL":"""
+
+        try:
+            response = self.model_manager.chat_once(
+                model_key="mistral",
+                system_prompt="You are a debate analyzer. Respond concisely with only names or 'ALL'.",
+                user_prompt=prompt,
+                max_new_tokens=20,
+                temperature=0.1
+            )
+
+            response = response.strip().upper()
+
+            # Parse response
+            if "ALL" in response:
+                return []  # Empty list means everyone responds
+
+            # Try to extract names
+            targets = []
+            for agent in self.agents:
+                if agent.name.upper() in response:
+                    targets.append(agent.name)
+
+            return targets if targets else None
+
+        except Exception as e:
+            print(f"[TargetDetector] LLM detection failed: {e}")
+            return None
