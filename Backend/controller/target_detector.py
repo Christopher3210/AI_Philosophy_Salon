@@ -61,10 +61,17 @@ class TargetDetector:
         if has_everyone:
             # Check for explicit exclusions: "except [name]" or "but [name]"
             if 'except' in question_lower or ' but ' in question_lower:
-                # Check if specific name mentioned (e.g., "everyone except aristotle", "all but russell")
-                if any(agent.name.lower() in question_lower for agent in self.agents):
-                    print(f"[Target Detection] 'everyone/all except/but [name]' detected, using LLM")
-                    # Fall through to LLM detection below
+                # Extract excluded names directly from question
+                excluded_names = []
+                for agent in self.agents:
+                    if agent.name.lower() in question_lower:
+                        excluded_names.append(agent.name)
+
+                if excluded_names:
+                    # Do exclusion directly in code (reliable)
+                    targets = [a.name for a in self.agents if a.name not in excluded_names]
+                    print(f"[Target Detection] Keyword match: Everyone except {', '.join(excluded_names)} → {', '.join(targets)}")
+                    return targets
                 else:
                     # "except/but" without specific name, treat as everyone
                     print(f"[Target Detection] Keyword match: Everyone")
