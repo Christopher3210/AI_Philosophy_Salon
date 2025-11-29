@@ -175,9 +175,8 @@ Question: "{question}"
 Available philosophers: {names_str}{context_info}
 
 Instructions:
-- Reply with the comma-separated names of philosophers who should respond
-- If everyone should respond, list all their names
-- If specific philosophers are addressed, list only those names
+- If the question contains "everyone", "all", or "everybody", list ALL philosophers: {names_str}
+- If specific philosophers are named, list only those names
 - Consider direct addressing, pronouns like 'you', and contextual references
 
 Reply with ONLY the names (comma-separated):"""
