@@ -1,6 +1,7 @@
 # controller/interrupt_handler.py
 
 import asyncio
+import sys
 
 
 class InterruptHandler:
@@ -59,6 +60,9 @@ class InterruptHandler:
 
         choice = await loop.run_in_executor(None, input, "Your choice: ")
         choice = choice.strip().lower()
+
+        # Small delay to allow input buffer to clear
+        await asyncio.sleep(0.1)
 
         if choice == 'q':
             # Import here to avoid circular dependency
