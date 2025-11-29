@@ -30,7 +30,7 @@ class TargetDetector:
         """
         Detect which philosophers should respond to the question.
 
-        Uses LLM-based intelligent detection for accurate semantic understanding.
+        Uses keyword matching for obvious cases, LLM for ambiguous ones.
 
         Parameters
         ----------
@@ -44,18 +44,33 @@ class TargetDetector:
         list of str
             List of agent names that should respond, or empty list if all should respond
         """
+        question_lower = question.lower()
+
         # Get last speaker from history for context
         last_speaker = None
         if recent_history and len(recent_history) > 0:
             last_speaker = recent_history[-1].get('agent')
 
-        # Use LLM for all target detection
+        # Direct keyword matching for obvious "everyone" cases
+        everyone_keywords = ['everyone', 'everybody', 'all of you', 'you all']
+        if any(keyword in question_lower for keyword in everyone_keywords):
+            # Check if it's "everyone else" or "others" - exclude last speaker
+            exclusion_keywords = ['else', 'other', 'rest']
+            if last_speaker and any(keyword in question_lower for keyword in exclusion_keywords):
+                targets = [a.name for a in self.agents if a.name != last_speaker]
+                print(f"[Target Detection] Keyword match: Everyone except {last_speaker} → {', '.join(targets)}")
+                return targets
+            else:
+                print(f"[Target Detection] Keyword match: Everyone")
+                return []  # Empty list = everyone
+
+        # Use LLM for ambiguous cases
         if self.model_manager:
             targets = self._llm_based_detection(question, last_speaker=last_speaker)
             if targets is not None:
                 return targets
 
-        # Fallback: all respond if LLM detection fails
+        # Fallback: all respond if detection fails
         return []
 
     def _check_others_pattern(self, question_lower: str) -> bool:
