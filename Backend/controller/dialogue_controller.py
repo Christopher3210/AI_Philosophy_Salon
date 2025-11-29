@@ -170,6 +170,10 @@ class DialogueController:
                 # Wait for generation to complete (no mid-generation interruption)
                 reply = await generation_task
 
+                # Check for interrupt immediately after generation
+                if self.is_interrupted or self.should_stop:
+                    continue
+
                 reply = reply.replace("\n", " ").strip()
 
                 # Clean speaker name from reply
