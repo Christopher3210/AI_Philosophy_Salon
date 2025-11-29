@@ -213,6 +213,10 @@ class DialogueController:
                     if reply.startswith(":"):
                         reply = reply[1:].strip()
 
+                # Remove "I:" prefix if present
+                if reply.startswith("I:") or reply.startswith("I :"):
+                    reply = reply[2:].strip() if reply.startswith("I:") else reply[3:].strip()
+
                 # Save to memory and history
                 speaker.add_memory(user_prompt, reply)
                 self.history.append({"agent": speaker.name, "response": reply})

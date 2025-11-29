@@ -116,6 +116,10 @@ class QuestionHandler:
                 if reply.startswith(":"):
                     reply = reply[1:].strip()
 
+            # Remove "I:" prefix if present
+            if reply.startswith("I:") or reply.startswith("I :"):
+                reply = reply[2:].strip() if reply.startswith("I:") else reply[3:].strip()
+
             agent.add_memory(user_prompt, reply)
             self.controller.history.append({"agent": agent.name, "response": reply, "is_qa": True})
 
