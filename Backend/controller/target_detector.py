@@ -199,6 +199,20 @@ Reply with ONLY the names or "ALL":"""
 
             # Parse response
             if "ALL" in response:
+                # First check if response explicitly says "EXCEPT" or "BUT"
+                if "EXCEPT" in response or "BUT" in response:
+                    # Extract the name(s) after EXCEPT/BUT
+                    excluded_names = []
+                    for agent in self.agents:
+                        if agent.name.upper() in response:
+                            excluded_names.append(agent.name)
+
+                    if excluded_names:
+                        # Return everyone except the excluded name(s)
+                        targets = [a.name for a in self.agents if a.name not in excluded_names]
+                        print(f"[Target Detection] Interpreted as: Everyone except {', '.join(excluded_names)} → {', '.join(targets)}")
+                        return targets
+
                 # Check if "others" or "everyone else" was used - exclude last speaker
                 others_keywords = ['other', 'else', 'rest']
                 question_lower = question.lower()
