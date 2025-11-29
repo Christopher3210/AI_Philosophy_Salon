@@ -54,9 +54,18 @@ class TargetDetector:
         # Direct keyword matching for obvious "everyone" cases
         everyone_keywords = ['everyone', 'everybody', 'all of you', 'you all']
         if any(keyword in question_lower for keyword in everyone_keywords):
-            # Check if it's "everyone else" or "others" - exclude last speaker
-            exclusion_keywords = ['else', 'other', 'rest']
-            if last_speaker and any(keyword in question_lower for keyword in exclusion_keywords):
+            # If "except" + specific name mentioned, let LLM handle it
+            if 'except' in question_lower:
+                # Check if any agent name is mentioned (e.g., "everyone except aristotle")
+                if any(agent.name.lower() in question_lower for agent in self.agents):
+                    print(f"[Target Detection] 'everyone except [name]' detected, using LLM")
+                    # Fall through to LLM detection below
+                else:
+                    # "except" without specific name, treat as everyone
+                    print(f"[Target Detection] Keyword match: Everyone")
+                    return []
+            # Check if it's "everyone else/others/rest" - exclude last speaker
+            elif last_speaker and any(kw in question_lower for kw in ['else', 'other', 'rest']):
                 targets = [a.name for a in self.agents if a.name != last_speaker]
                 print(f"[Target Detection] Keyword match: Everyone except {last_speaker} → {', '.join(targets)}")
                 return targets
