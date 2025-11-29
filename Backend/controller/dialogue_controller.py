@@ -135,10 +135,17 @@ class DialogueController:
                     if self.should_stop:
                         break
 
+                    # Ensure interrupt flag is cleared
+                    self.is_interrupted = False
+
+                    # Longer delay before restarting listener to clear buffer
+                    await asyncio.sleep(0.8)
+
                     # Restart listener
                     listener_task = asyncio.create_task(self.interrupt_handler.listen_for_interrupt())
-                    # Longer delay to prevent picking up buffered input
-                    await asyncio.sleep(0.5)
+
+                    # Additional delay after starting listener
+                    await asyncio.sleep(0.3)
                     continue
 
                 # Check if should stop before starting new generation
