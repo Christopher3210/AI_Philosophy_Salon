@@ -107,7 +107,38 @@ class TargetDetector:
                         print(f"[Target Detection] Keyword match: '{display_name}' → Everyone except {last_speaker} → {', '.join(targets)}")
                         return targets
 
-        # 3. Use LLM for ambiguous cases (specific names, pronouns, etc.)
+        # 3. Check for "[Name]'s idea/opinion/view" pattern - exclude that person
+        opinion_keywords = ["'s idea", "'s opinion", "'s view", "'s perspective", "'s argument", "'s point"]
+        for keyword in opinion_keywords:
+            if keyword in question_lower:
+                # Find whose idea is being discussed
+                discussed_names = []
+                for agent in self.agents:
+                    possessive = agent.name.lower() + keyword
+                    if possessive in question_lower:
+                        discussed_names.append(agent.name)
+
+                if discussed_names:
+                    # Check if there's a trailing address (who we're asking)
+                    addressed_name = self._find_trailing_address(question_lower)
+
+                    if addressed_name:
+                        # Ask the addressed person, not the person being discussed
+                        print(f"[Target Detection] Asking {addressed_name} about {', '.join(discussed_names)}'s idea")
+                        return [addressed_name]
+                    else:
+                        # Ask everyone except the person being discussed
+                        targets = [a.name for a in self.agents if a.name not in discussed_names]
+                        print(f"[Target Detection] Asking about {', '.join(discussed_names)}'s idea → Everyone except them: {', '.join(targets)}")
+                        return targets
+
+        # 4. Check for trailing address (e.g., "..., aristotle?")
+        addressed_name = self._find_trailing_address(question_lower)
+        if addressed_name:
+            print(f"[Target Detection] Trailing address detected: {addressed_name}")
+            return [addressed_name]
+
+        # 5. Use LLM for ambiguous cases (specific names, pronouns, etc.)
         if self.model_manager:
             targets = self._llm_based_detection(question, last_speaker=last_speaker)
             if targets is not None:
@@ -115,6 +146,51 @@ class TargetDetector:
 
         # Fallback: all respond if detection fails
         return []
+
+    def _find_trailing_address(self, question_lower: str) -> str | None:
+        """
+        Find trailing address with fuzzy name matching.
+
+        Handles cases like:
+        - "..., aristotle?"
+        - "... aristotl?"  (typo)
+        - "... russell"
+
+        Returns
+        -------
+        str or None
+            Agent name if found, None otherwise
+        """
+        import re
+
+        # Extract the last word/token from the question
+        # Look for pattern: comma/space + word + optional punctuation at end
+        patterns = [
+            r',\s*(\w+)\s*[?!.]?\s*$',  # ", aristotle?" or ", aristotl?"
+            r'\s+(\w+)\s*[?!.]?\s*$',    # " aristotle?" or " aristotl?"
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, question_lower)
+            if match:
+                potential_name = match.group(1)
+
+                # Try exact match first
+                for agent in self.agents:
+                    if agent.name.lower() == potential_name:
+                        return agent.name
+
+                # Try fuzzy match (starts with)
+                for agent in self.agents:
+                    if agent.name.lower().startswith(potential_name) and len(potential_name) >= 4:
+                        return agent.name
+
+                # Try partial match (contained in name)
+                for agent in self.agents:
+                    if potential_name in agent.name.lower() and len(potential_name) >= 4:
+                        return agent.name
+
+        return None
 
     def _check_others_pattern(self, question_lower: str) -> bool:
         """Check for 'others' pattern indicating all should respond."""
