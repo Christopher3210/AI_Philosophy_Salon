@@ -144,10 +144,7 @@ class TargetDetector:
         starts_with_question = any(question_lower.strip().startswith(qw) for qw in question_words)
 
         if len(mentioned) == 1 and starts_with_question:
-            # Check if there's a direct address pattern (name with comma)
-            for agent in self.agents:
-                name_lower = agent.name.lower()
-                if re.search(r'\b' + re.escape(name_lower) + r'\s*,', question_lower):
-                    return [agent.name]
+            # Return the single mentioned philosopher as target
+            return mentioned
 
         return []
