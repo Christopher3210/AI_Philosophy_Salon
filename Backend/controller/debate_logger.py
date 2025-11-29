@@ -24,7 +24,7 @@ class DebateLogger:
     - Markdown (human-readable format)
     """
 
-    def __init__(self, topic: str, participants: List[str], output_dir: str = "logs"):
+    def __init__(self, topic: str, participants: List[str], output_dir: str = "logs", conviviality: float = 0.5):
         """
         Parameters
         ----------
@@ -34,10 +34,13 @@ class DebateLogger:
             Names of participating philosophers
         output_dir : str
             Directory to save log files
+        conviviality : float
+            Debate intensity setting (0.0 = confrontational, 1.0 = friendly)
         """
         self.session_id = str(uuid.uuid4())[:8]
         self.topic = topic
         self.participants = participants
+        self.conviviality = conviviality
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
 
@@ -47,6 +50,9 @@ class DebateLogger:
 
         # Utterance log - main data structure
         self.utterances: List[Dict[str, Any]] = []
+
+        # Interrupt log - detailed interrupt events
+        self.interrupts: List[Dict[str, Any]] = []
 
         # Statistics
         self.stats = {
@@ -58,7 +64,7 @@ class DebateLogger:
             "interrupts": 0,
         }
 
-        print(f"[Logger] Session {self.session_id} started - Topic: {topic}")
+        print(f"[Logger] Session {self.session_id} started - Topic: {topic} (conviviality: {conviviality})")
 
     def log_utterance(
         self,
@@ -66,6 +72,8 @@ class DebateLogger:
         content: str,
         turn: int,
         is_qa: bool = False,
+        stance: str = None,
+        motivation_scores: Dict[str, float] = None,
         metadata: Dict[str, Any] = None
     ):
         """
@@ -81,8 +89,12 @@ class DebateLogger:
             Turn/round number
         is_qa : bool
             Whether this is a Q&A response
+        stance : str, optional
+            Speaker's stance (STRONGLY_AGREE, AGREE, NEUTRAL, DISAGREE, STRONGLY_DISAGREE)
+        motivation_scores : dict, optional
+            Motivation scores for all philosophers at this moment
         metadata : dict, optional
-            Additional metadata (e.g., desire_score, conflict_score)
+            Additional metadata (e.g., question for Q&A)
         """
         timestamp = datetime.now()
 
@@ -97,6 +109,14 @@ class DebateLogger:
             "char_count": len(content),
             "elapsed_seconds": (timestamp - self.start_time).total_seconds(),
         }
+
+        # Add stance information
+        if stance:
+            utterance["stance"] = stance
+
+        # Add motivation scores snapshot
+        if motivation_scores:
+            utterance["motivation_scores"] = motivation_scores.copy()
 
         # Add optional metadata
         if metadata:
@@ -114,8 +134,28 @@ class DebateLogger:
 
         self.stats["total_words"] += utterance["word_count"]
 
-    def log_interrupt(self):
-        """Log an interrupt event."""
+    def log_interrupt(self, turn: int = None, during_speaker: str = None):
+        """
+        Log an interrupt event with context.
+
+        Parameters
+        ----------
+        turn : int, optional
+            Turn number when interrupt occurred
+        during_speaker : str, optional
+            Name of speaker who was interrupted (if mid-speech)
+        """
+        timestamp = datetime.now()
+
+        interrupt_event = {
+            "id": len(self.interrupts) + 1,
+            "timestamp": timestamp.isoformat(),
+            "elapsed_seconds": (timestamp - self.start_time).total_seconds(),
+            "turn": turn,
+            "during_speaker": during_speaker,
+        }
+
+        self.interrupts.append(interrupt_event)
         self.stats["interrupts"] += 1
 
     def finalize(self):
@@ -160,10 +200,12 @@ class DebateLogger:
             "session_id": self.session_id,
             "topic": self.topic,
             "participants": self.participants,
+            "conviviality": self.conviviality,
             "start_time": self.start_time.isoformat(),
             "end_time": self.end_time.isoformat() if self.end_time else None,
             "statistics": self.stats,
             "utterances": self.utterances,
+            "interrupts": self.interrupts,
         }
 
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -231,6 +273,11 @@ class DebateLogger:
             f.write(f"**Session ID**: {self.session_id}\n\n")
             f.write(f"**Topic**: {self.topic}\n\n")
             f.write(f"**Participants**: {', '.join(self.participants)}\n\n")
+
+            # Debate configuration
+            conviviality_desc = "Friendly" if self.conviviality >= 0.7 else "Heated" if self.conviviality <= 0.3 else "Balanced"
+            f.write(f"**Debate Intensity**: {conviviality_desc} (conviviality: {self.conviviality})\n\n")
+
             f.write(f"**Start Time**: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             if self.end_time:
                 f.write(f"**End Time**: {self.end_time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
@@ -266,7 +313,20 @@ class DebateLogger:
                 # Utterance
                 marker = "💬" if not utt['is_qa'] else "❓"
                 elapsed = self._format_duration(utt['elapsed_seconds'])
-                f.write(f"{marker} **{utt['speaker']}** [{elapsed}]: {utt['content']}\n\n")
+
+                # Add stance indicator if available
+                stance_indicator = ""
+                if 'stance' in utt and utt['stance']:
+                    stance_map = {
+                        "STRONGLY_AGREE": "✅✅",
+                        "AGREE": "✅",
+                        "NEUTRAL": "〰️",
+                        "DISAGREE": "❌",
+                        "STRONGLY_DISAGREE": "❌❌"
+                    }
+                    stance_indicator = f" {stance_map.get(utt['stance'], '')}"
+
+                f.write(f"{marker} **{utt['speaker']}**{stance_indicator} [{elapsed}]: {utt['content']}\n\n")
 
         print(f"[Logger] Exported Markdown: {filepath}")
         return str(filepath)

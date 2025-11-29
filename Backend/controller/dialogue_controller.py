@@ -101,7 +101,7 @@ class DialogueController:
         """
         # Initialize logger
         participant_names = [a.name for a in self.agents]
-        self.logger = DebateLogger(topic, participant_names)
+        self.logger = DebateLogger(topic, participant_names, conviviality=self.conviviality)
 
         # Print header
         print(f"\n{'='*60}")
@@ -119,8 +119,8 @@ class DialogueController:
             while not self.should_stop:
                 # Check for interrupt FIRST
                 if self.is_interrupted:
-                    # Log interrupt event
-                    self.logger.log_interrupt()
+                    # Log interrupt event with current turn
+                    self.logger.log_interrupt(turn=self.speech_count)
 
                     # Cancel old listener
                     if listener_task and not listener_task.done():
@@ -208,12 +208,17 @@ class DialogueController:
                 self.history.append({"agent": speaker.name, "response": reply})
                 self.speech_count += 1
 
-                # Log utterance
+                # Capture current motivation scores snapshot
+                motivation_snapshot = {agent.name: agent.motivation_score for agent in self.agents}
+
+                # Log utterance with stance and motivation scores
                 self.logger.log_utterance(
                     speaker=speaker.name,
                     content=reply,
                     turn=self.speech_count,
-                    is_qa=False
+                    is_qa=False,
+                    stance=stance,
+                    motivation_scores=motivation_snapshot
                 )
 
                 # Update motivation scores based on this utterance
