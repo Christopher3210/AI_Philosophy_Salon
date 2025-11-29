@@ -154,11 +154,19 @@ class StanceAnalyzer:
         str
             Instruction to add to the generation prompt
         """
-        if stance in ["STRONGLY_DISAGREE", "DISAGREE"]:
+        if stance == "STRONGLY_DISAGREE":
+            if conviviality >= 0.7:
+                return "Respectfully present your different view while noting areas of agreement."
+            elif conviviality <= 0.3:
+                return "Forcefully reject this argument. Attack its core assumptions and show why it's fundamentally flawed."
+            else:
+                return "Strongly disagree with this view and explain the critical flaws in this reasoning."
+
+        elif stance == "DISAGREE":
             if conviviality >= 0.7:
                 return "Politely express your different perspective while acknowledging valid points."
             elif conviviality <= 0.3:
-                return "Challenge this view directly and defend your position strongly."
+                return "Challenge this view aggressively. Point out its errors and defend your opposing position."
             else:
                 return "Critically engage with this view and explain your disagreement."
 
@@ -166,7 +174,7 @@ class StanceAnalyzer:
             if conviviality >= 0.7:
                 return "Build upon this idea enthusiastically and add your insights."
             elif conviviality <= 0.3:
-                return "Agree, but push the argument further and find tensions."
+                return "Agree with the core point, but identify weaknesses and push back on specifics."
             else:
                 return "Support this view while adding your unique perspective."
 
@@ -174,6 +182,6 @@ class StanceAnalyzer:
             if conviviality >= 0.7:
                 return "Offer a complementary perspective that enriches the discussion."
             elif conviviality <= 0.3:
-                return "Introduce a provocative angle or challenge the assumptions."
+                return "Take a contrarian stance. Challenge the underlying assumptions and provoke debate."
             else:
                 return "Provide your distinct philosophical perspective on this topic."
