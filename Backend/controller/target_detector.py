@@ -217,7 +217,8 @@ class TargetDetector:
         context_info = ""
         if last_speaker:
             context_info = f"\n\nContext: {last_speaker} just spoke."
-            context_info += f"\n- If the question says 'others', 'everyone else', or 'rest', exclude {last_speaker} from your response."
+            context_info += f"\n- 'you' or 'your' refers to {last_speaker}"
+            context_info += f"\n- If the question says 'others', 'everyone else', or 'rest', exclude {last_speaker}"
 
         prompt = f"""Analyze who should respond to this question in a philosophical debate.
 
@@ -227,8 +228,10 @@ Available philosophers: {names_str}{context_info}
 
 Instructions:
 - If the question contains "everyone", "all", or "everybody", list ALL philosophers: {names_str}
-- If specific philosophers are named, list only those names
-- Consider direct addressing, pronouns like 'you', and contextual references
+- If asking "you/your" (which refers to the last speaker), respond with only the last speaker's name
+- If asking "what do you think about [Person X]'s opinion/view/idea", respond with the last speaker's name (NOT Person X)
+- If specific philosophers are directly named (e.g., "Russell, what..."), list only those names
+- Consider pronouns and conversational context
 
 Reply with ONLY the names (comma-separated):"""
 
