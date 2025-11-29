@@ -41,6 +41,9 @@ class QuestionHandler:
             print("No question provided.")
             return
 
+        # Reset interrupt flag (the Enter press to submit question may have triggered it)
+        self.controller.is_interrupted = False
+
         print(f"\n[You ask]: {question}\n")
 
         # Detect if question targets specific philosophers
