@@ -199,8 +199,18 @@ Reply with ONLY the names or "ALL":"""
 
             # Parse response
             if "ALL" in response:
-                print(f"[Target Detection] Interpreted as: Everyone")
-                return []  # Empty list means everyone responds
+                # Check if "others" or "everyone else" was used - exclude last speaker
+                others_keywords = ['other', 'else', 'rest']
+                question_lower = question.lower()
+
+                if last_speaker and any(kw in question_lower for kw in others_keywords):
+                    # Exclude the last speaker
+                    targets = [a.name for a in self.agents if a.name != last_speaker]
+                    print(f"[Target Detection] Interpreted as: Everyone except {last_speaker} → {', '.join(targets)}")
+                    return targets
+                else:
+                    print(f"[Target Detection] Interpreted as: Everyone")
+                    return []  # Empty list means everyone responds
 
             # Try to extract names
             targets = []
