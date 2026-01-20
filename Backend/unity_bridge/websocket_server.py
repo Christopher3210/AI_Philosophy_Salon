@@ -55,7 +55,7 @@ class WebSocketServer:
             await self.server.wait_closed()
             print("[WebSocket] Server stopped")
 
-    async def _handle_client(self, websocket: WebSocketServerProtocol, path: str):
+    async def _handle_client(self, websocket: WebSocketServerProtocol):
         """Handle a client connection."""
         self.clients.add(websocket)
         client_id = id(websocket)
