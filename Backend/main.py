@@ -64,7 +64,7 @@ def main():
         conviviality=conviviality
     )
 
-    asyncio.run(controller.run_dialogue(topic="What is the meaning of freedom?"))
+    asyncio.run(controller.run_dialogue(topic="what is the meaning of freedom?"))
 
 
 if __name__ == "__main__":
