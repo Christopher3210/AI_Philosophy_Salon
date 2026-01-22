@@ -61,13 +61,13 @@ public class SettingsPanel : MonoBehaviour
         viewport.AddComponent<RectMask2D>();
         scrollRect.viewport = viewport.GetComponent<RectTransform>();
 
-        // Content - fixed height based on number of items
+        // Content - auto size based on children
         GameObject content = UIFactory.CreateElement("Content", viewport);
         RectTransform contentRect = content.GetComponent<RectTransform>();
         contentRect.anchorMin = new Vector2(0, 1);
         contentRect.anchorMax = new Vector2(1, 1);
         contentRect.pivot = new Vector2(0.5f, 1);
-        contentRect.sizeDelta = new Vector2(-30, 1200); // Fixed height for all content
+        contentRect.sizeDelta = new Vector2(-30, 0);
         contentRect.anchoredPosition = Vector2.zero;
 
         scrollRect.content = contentRect;
@@ -81,6 +81,11 @@ public class SettingsPanel : MonoBehaviour
         layout.childControlHeight = false;
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
+
+        // Auto-size content based on children
+        ContentSizeFitter fitter = content.AddComponent<ContentSizeFitter>();
+        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
         // Add all settings
         AddSettingsContent(content);
