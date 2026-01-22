@@ -14,9 +14,6 @@ public class SettingsPanel : MonoBehaviour
 
     public UnityAction OnBackClicked;
 
-    /// <summary>
-    /// Create and setup the settings panel
-    /// </summary>
     public void Initialize(GameObject parent)
     {
         panel = UIFactory.CreateElement("SettingsPanel", parent);
@@ -28,132 +25,69 @@ public class SettingsPanel : MonoBehaviour
         overlayImg.color = new Color(0, 0, 0, 0.7f);
         UIFactory.SetFullScreen(overlay);
 
-        // Window - make it larger (90% of screen height)
+        // Window
         GameObject window = UIFactory.CreateElement("Window", panel);
         Image windowBg = window.AddComponent<Image>();
         windowBg.color = SettingsData.PanelColor;
-
-        RectTransform windowRect = window.GetComponent<RectTransform>();
-        windowRect.anchorMin = new Vector2(0.5f, 0.5f);
-        windowRect.anchorMax = new Vector2(0.5f, 0.5f);
-        windowRect.sizeDelta = new Vector2(850, 650);
-        windowRect.anchoredPosition = Vector2.zero;
+        UIFactory.SetRect(window, 0.5f, 0.5f, 850, 650);
 
         // Title
         Text title = UIFactory.CreateText(window, "Title", "Settings",
             36, SettingsData.TitleColor, TextAnchor.MiddleCenter, FontStyle.Bold);
         UIFactory.SetRect(title.gameObject, 0.5f, 1f, 300, 60, new Vector2(0, -35));
 
-        // Create scroll view
-        CreateScrollView(window);
-
-        // Back button
-        CreateBackButton(window);
-
-        panel.SetActive(false);
-    }
-
-    private void CreateScrollView(GameObject window)
-    {
-        // Scroll View container
+        // Scroll View
         GameObject scrollView = UIFactory.CreateElement("ScrollView", window);
-        RectTransform scrollViewRect = scrollView.GetComponent<RectTransform>();
-        scrollViewRect.anchorMin = new Vector2(0, 0);
-        scrollViewRect.anchorMax = new Vector2(1, 1);
-        scrollViewRect.offsetMin = new Vector2(20, 70);  // Left, Bottom (space for back button)
-        scrollViewRect.offsetMax = new Vector2(-20, -70); // Right, Top (space for title)
+        RectTransform svRect = scrollView.GetComponent<RectTransform>();
+        svRect.anchorMin = new Vector2(0, 0);
+        svRect.anchorMax = new Vector2(1, 1);
+        svRect.offsetMin = new Vector2(15, 65);
+        svRect.offsetMax = new Vector2(-15, -70);
 
         ScrollRect scrollRect = scrollView.AddComponent<ScrollRect>();
         scrollRect.horizontal = false;
         scrollRect.vertical = true;
-        scrollRect.movementType = ScrollRect.MovementType.Clamped;
-        scrollRect.scrollSensitivity = 30f;
+        scrollRect.movementType = ScrollRect.MovementType.Elastic;
+        scrollRect.elasticity = 0.1f;
+        scrollRect.scrollSensitivity = 25f;
 
-        // Viewport (masks content)
+        // Viewport - use RectMask2D for better performance
         GameObject viewport = UIFactory.CreateElement("Viewport", scrollView);
-        RectTransform viewportRect = viewport.GetComponent<RectTransform>();
-        viewportRect.anchorMin = Vector2.zero;
-        viewportRect.anchorMax = Vector2.one;
-        viewportRect.offsetMin = Vector2.zero;
-        viewportRect.offsetMax = new Vector2(-15, 0); // Leave space for scrollbar
+        UIFactory.SetFullScreen(viewport);
+        viewport.AddComponent<RectMask2D>();
+        scrollRect.viewport = viewport.GetComponent<RectTransform>();
 
-        Image viewportImage = viewport.AddComponent<Image>();
-        viewportImage.color = new Color(1, 1, 1, 0);
-        Mask mask = viewport.AddComponent<Mask>();
-        mask.showMaskGraphic = false;
-
-        scrollRect.viewport = viewportRect;
-
-        // Content container
+        // Content - fixed height based on number of items
         GameObject content = UIFactory.CreateElement("Content", viewport);
         RectTransform contentRect = content.GetComponent<RectTransform>();
         contentRect.anchorMin = new Vector2(0, 1);
         contentRect.anchorMax = new Vector2(1, 1);
         contentRect.pivot = new Vector2(0.5f, 1);
+        contentRect.sizeDelta = new Vector2(-30, 950); // Fixed height for all content
         contentRect.anchoredPosition = Vector2.zero;
 
-        // Content Size Fitter to auto-expand
-        ContentSizeFitter fitter = content.AddComponent<ContentSizeFitter>();
-        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        scrollRect.content = contentRect;
 
+        // Layout
         VerticalLayoutGroup layout = content.AddComponent<VerticalLayoutGroup>();
-        layout.spacing = 20;
-        layout.padding = new RectOffset(25, 25, 15, 15);
+        layout.spacing = 18;
+        layout.padding = new RectOffset(20, 20, 10, 10);
         layout.childAlignment = TextAnchor.UpperCenter;
         layout.childControlWidth = true;
         layout.childControlHeight = false;
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
-        scrollRect.content = contentRect;
+        // Add all settings
+        AddSettingsContent(content);
 
-        // Create scrollbar
+        // Scrollbar
         CreateScrollbar(scrollView, scrollRect);
 
-        // Add settings content
-        AddSettingsContent(content);
-    }
+        // Back button
+        CreateBackButton(window);
 
-    private void CreateScrollbar(GameObject scrollView, ScrollRect scrollRect)
-    {
-        GameObject scrollbarObj = UIFactory.CreateElement("Scrollbar", scrollView);
-        RectTransform scrollbarRect = scrollbarObj.GetComponent<RectTransform>();
-        scrollbarRect.anchorMin = new Vector2(1, 0);
-        scrollbarRect.anchorMax = new Vector2(1, 1);
-        scrollbarRect.pivot = new Vector2(1, 0.5f);
-        scrollbarRect.sizeDelta = new Vector2(12, 0);
-        scrollbarRect.anchoredPosition = Vector2.zero;
-
-        Image scrollbarBg = scrollbarObj.AddComponent<Image>();
-        scrollbarBg.color = new Color(0.15f, 0.15f, 0.2f, 1f);
-
-        Scrollbar scrollbar = scrollbarObj.AddComponent<Scrollbar>();
-        scrollbar.direction = Scrollbar.Direction.BottomToTop;
-
-        // Handle
-        GameObject handleArea = UIFactory.CreateElement("Handle Area", scrollbarObj);
-        RectTransform handleAreaRect = handleArea.GetComponent<RectTransform>();
-        handleAreaRect.anchorMin = Vector2.zero;
-        handleAreaRect.anchorMax = Vector2.one;
-        handleAreaRect.offsetMin = new Vector2(2, 2);
-        handleAreaRect.offsetMax = new Vector2(-2, -2);
-
-        GameObject handle = UIFactory.CreateElement("Handle", handleArea);
-        RectTransform handleRect = handle.GetComponent<RectTransform>();
-        handleRect.anchorMin = Vector2.zero;
-        handleRect.anchorMax = Vector2.one;
-        handleRect.offsetMin = Vector2.zero;
-        handleRect.offsetMax = Vector2.zero;
-
-        Image handleImage = handle.AddComponent<Image>();
-        handleImage.color = SettingsData.TitleColor;
-
-        scrollbar.targetGraphic = handleImage;
-        scrollbar.handleRect = handleRect;
-
-        scrollRect.verticalScrollbar = scrollbar;
-        scrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+        panel.SetActive(false);
     }
 
     private void AddSettingsContent(GameObject content)
@@ -191,6 +125,40 @@ public class SettingsPanel : MonoBehaviour
         }
     }
 
+    private void CreateScrollbar(GameObject scrollView, ScrollRect scrollRect)
+    {
+        GameObject scrollbarObj = UIFactory.CreateElement("Scrollbar", scrollView);
+        RectTransform sbRect = scrollbarObj.GetComponent<RectTransform>();
+        sbRect.anchorMin = new Vector2(1, 0);
+        sbRect.anchorMax = new Vector2(1, 1);
+        sbRect.pivot = new Vector2(1, 0.5f);
+        sbRect.sizeDelta = new Vector2(10, 0);
+        sbRect.anchoredPosition = new Vector2(5, 0);
+
+        Image sbBg = scrollbarObj.AddComponent<Image>();
+        sbBg.color = new Color(0.2f, 0.2f, 0.25f, 0.5f);
+
+        Scrollbar scrollbar = scrollbarObj.AddComponent<Scrollbar>();
+        scrollbar.direction = Scrollbar.Direction.BottomToTop;
+
+        // Handle
+        GameObject handle = UIFactory.CreateElement("Handle", scrollbarObj);
+        RectTransform handleRect = handle.GetComponent<RectTransform>();
+        handleRect.anchorMin = Vector2.zero;
+        handleRect.anchorMax = Vector2.one;
+        handleRect.offsetMin = new Vector2(1, 0);
+        handleRect.offsetMax = new Vector2(-1, 0);
+
+        Image handleImg = handle.AddComponent<Image>();
+        handleImg.color = SettingsData.TitleColor;
+
+        scrollbar.handleRect = handleRect;
+        scrollbar.targetGraphic = handleImg;
+
+        scrollRect.verticalScrollbar = scrollbar;
+        scrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+    }
+
     private void CreateBackButton(GameObject parent)
     {
         GameObject backBtn = UIFactory.CreateElement("BackButton", parent);
@@ -206,7 +174,7 @@ public class SettingsPanel : MonoBehaviour
         colors.pressedColor = new Color(0.75f, 0.65f, 0.45f, 1f);
         btn.colors = colors;
 
-        UIFactory.SetRect(backBtn, 0.5f, 0f, 150, 45, new Vector2(0, 15));
+        UIFactory.SetRect(backBtn, 0.5f, 0f, 150, 45, new Vector2(0, 12));
 
         Text btnText = UIFactory.CreateText(backBtn, "Text", "Back",
             22, new Color(0.1f, 0.1f, 0.15f, 1f), TextAnchor.MiddleCenter, FontStyle.Bold);
@@ -219,15 +187,7 @@ public class SettingsPanel : MonoBehaviour
         PlayerPrefs.SetFloat(SettingsData.KEY_MASTER_VOLUME, value);
     }
 
-    public void Show()
-    {
-        panel.SetActive(true);
-    }
-
-    public void Hide()
-    {
-        panel.SetActive(false);
-    }
-
+    public void Show() => panel.SetActive(true);
+    public void Hide() => panel.SetActive(false);
     public bool IsVisible => panel.activeSelf;
 }
