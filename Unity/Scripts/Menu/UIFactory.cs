@@ -349,18 +349,54 @@ public static class UIFactory
         templateBg.color = SettingsData.DropdownColor;
 
         ScrollRect scrollRect = templateObj.AddComponent<ScrollRect>();
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.movementType = ScrollRect.MovementType.Clamped;
+        scrollRect.scrollSensitivity = 30f;
 
         // Viewport
         GameObject viewportObj = CreateElement("Viewport", templateObj);
         RectTransform viewportRect = viewportObj.GetComponent<RectTransform>();
         viewportRect.anchorMin = Vector2.zero;
         viewportRect.anchorMax = Vector2.one;
-        viewportRect.offsetMin = Vector2.zero;
-        viewportRect.offsetMax = Vector2.zero;
+        viewportRect.offsetMin = new Vector2(0, 0);
+        viewportRect.offsetMax = new Vector2(-12, 0); // Leave space for scrollbar
 
+        Image viewportImg = viewportObj.AddComponent<Image>();
+        viewportImg.color = Color.clear;
         Mask mask = viewportObj.AddComponent<Mask>();
         mask.showMaskGraphic = false;
-        viewportObj.AddComponent<Image>().color = Color.white;
+
+        // Dropdown scrollbar
+        GameObject scrollbarObj = CreateElement("Scrollbar", templateObj);
+        RectTransform sbRect = scrollbarObj.GetComponent<RectTransform>();
+        sbRect.anchorMin = new Vector2(1, 0);
+        sbRect.anchorMax = new Vector2(1, 1);
+        sbRect.pivot = new Vector2(1, 0.5f);
+        sbRect.sizeDelta = new Vector2(10, 0);
+        sbRect.anchoredPosition = Vector2.zero;
+
+        Image sbBg = scrollbarObj.AddComponent<Image>();
+        sbBg.color = new Color(0.2f, 0.2f, 0.25f, 0.8f);
+
+        Scrollbar scrollbar = scrollbarObj.AddComponent<Scrollbar>();
+        scrollbar.direction = Scrollbar.Direction.BottomToTop;
+
+        GameObject sbHandle = CreateElement("Handle", scrollbarObj);
+        RectTransform sbHandleRect = sbHandle.GetComponent<RectTransform>();
+        sbHandleRect.anchorMin = Vector2.zero;
+        sbHandleRect.anchorMax = Vector2.one;
+        sbHandleRect.offsetMin = new Vector2(2, 2);
+        sbHandleRect.offsetMax = new Vector2(-2, -2);
+
+        Image sbHandleImg = sbHandle.AddComponent<Image>();
+        sbHandleImg.color = SettingsData.TitleColor;
+
+        scrollbar.handleRect = sbHandleRect;
+        scrollbar.targetGraphic = sbHandleImg;
+
+        scrollRect.verticalScrollbar = scrollbar;
+        scrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
 
         // Content
         GameObject contentObj = CreateElement("Content", viewportObj);
