@@ -352,7 +352,7 @@ public static class UIFactory
         scrollRect.horizontal = false;
         scrollRect.vertical = true;
         scrollRect.movementType = ScrollRect.MovementType.Clamped;
-        scrollRect.scrollSensitivity = 50f;
+        scrollRect.scrollSensitivity = 80f;
 
         // Viewport
         GameObject viewportObj = CreateElement("Viewport", templateObj);
@@ -363,7 +363,7 @@ public static class UIFactory
         viewportRect.offsetMax = new Vector2(-12, 0); // Leave space for scrollbar
 
         Image viewportImg = viewportObj.AddComponent<Image>();
-        viewportImg.color = Color.clear;
+        viewportImg.color = Color.white;
         Mask mask = viewportObj.AddComponent<Mask>();
         mask.showMaskGraphic = false;
 

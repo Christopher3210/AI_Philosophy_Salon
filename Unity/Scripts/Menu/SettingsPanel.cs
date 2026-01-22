@@ -57,7 +57,7 @@ public class SettingsPanel : MonoBehaviour
         scrollRect.vertical = true;
         scrollRect.movementType = ScrollRect.MovementType.Elastic;
         scrollRect.elasticity = 0.1f;
-        scrollRect.scrollSensitivity = 50f;
+        scrollRect.scrollSensitivity = 80f;
 
         // Viewport - use RectMask2D for better performance
         GameObject viewport = UIFactory.CreateElement("Viewport", scrollView);
