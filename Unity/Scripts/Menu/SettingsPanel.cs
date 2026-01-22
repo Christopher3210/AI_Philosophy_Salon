@@ -48,12 +48,16 @@ public class SettingsPanel : MonoBehaviour
         svRect.offsetMin = new Vector2(15, 65);
         svRect.offsetMax = new Vector2(-15, -70);
 
+        // Add invisible image to receive scroll events
+        Image scrollBg = scrollView.AddComponent<Image>();
+        scrollBg.color = Color.clear;
+
         ScrollRect scrollRect = scrollView.AddComponent<ScrollRect>();
         scrollRect.horizontal = false;
         scrollRect.vertical = true;
         scrollRect.movementType = ScrollRect.MovementType.Elastic;
         scrollRect.elasticity = 0.1f;
-        scrollRect.scrollSensitivity = 25f;
+        scrollRect.scrollSensitivity = 30f;
 
         // Viewport - use RectMask2D for better performance
         GameObject viewport = UIFactory.CreateElement("Viewport", scrollView);
