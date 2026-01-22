@@ -352,7 +352,7 @@ public static class UIFactory
         scrollRect.horizontal = false;
         scrollRect.vertical = true;
         scrollRect.movementType = ScrollRect.MovementType.Clamped;
-        scrollRect.scrollSensitivity = 30f;
+        scrollRect.scrollSensitivity = 50f;
 
         // Viewport
         GameObject viewportObj = CreateElement("Viewport", templateObj);
