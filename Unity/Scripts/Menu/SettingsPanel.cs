@@ -67,7 +67,7 @@ public class SettingsPanel : MonoBehaviour
         contentRect.anchorMin = new Vector2(0, 1);
         contentRect.anchorMax = new Vector2(1, 1);
         contentRect.pivot = new Vector2(0.5f, 1);
-        contentRect.sizeDelta = new Vector2(-30, 950); // Fixed height for all content
+        contentRect.sizeDelta = new Vector2(-30, 1200); // Fixed height for all content
         contentRect.anchoredPosition = Vector2.zero;
 
         scrollRect.content = contentRect;
