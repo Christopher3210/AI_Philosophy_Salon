@@ -25,11 +25,15 @@ public class SettingsPanel : MonoBehaviour
         overlayImg.color = new Color(0, 0, 0, 0.7f);
         UIFactory.SetFullScreen(overlay);
 
-        // Window
+        // Window - use percentage of screen size
         GameObject window = UIFactory.CreateElement("Window", panel);
         Image windowBg = window.AddComponent<Image>();
         windowBg.color = SettingsData.PanelColor;
-        UIFactory.SetRect(window, 0.5f, 0.5f, 850, 650);
+        RectTransform windowRect = window.GetComponent<RectTransform>();
+        windowRect.anchorMin = new Vector2(0.1f, 0.08f);  // 10% from left, 8% from bottom
+        windowRect.anchorMax = new Vector2(0.9f, 0.92f);  // 10% from right, 8% from top
+        windowRect.offsetMin = Vector2.zero;
+        windowRect.offsetMax = Vector2.zero;
 
         // Title
         Text title = UIFactory.CreateText(window, "Title", "Settings",
