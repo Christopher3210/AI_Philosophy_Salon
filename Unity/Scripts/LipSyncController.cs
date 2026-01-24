@@ -216,23 +216,30 @@ namespace PhilosophySalon
         {
             if (string.IsNullOrEmpty(viseme.viseme)) return;
 
-            // Try to find mapping from pre-built map
+            // First, reset ALL viseme weights to 0 (only keep current viseme active)
+            foreach (var kvp in visemeMap)
+            {
+                if (kvp.Value.blendshapeIndex >= 0)
+                {
+                    currentWeights[kvp.Value.blendshapeIndex] = 0f;
+                }
+            }
+
+            // Now set the current viseme weight
             if (visemeMap.TryGetValue(viseme.viseme, out VisemeBlendshapeMapping mapping))
             {
                 if (mapping.blendshapeIndex >= 0)
                 {
                     float targetWeight = mapping.maxWeight * viseme.weight * intensity;
-                    SetTargetWeight(mapping.blendshapeIndex, targetWeight);
+                    currentWeights[mapping.blendshapeIndex] = targetWeight;
                 }
             }
             else
             {
                 // Fallback: Try to find blendshape directly
-                // First try with "viseme_" prefix
                 string blendshapeName = "viseme_" + viseme.viseme;
                 int index = FindBlendshapeIndexByName(blendshapeName);
 
-                // If not found, try without prefix
                 if (index < 0)
                 {
                     index = FindBlendshapeIndexByName(viseme.viseme);
@@ -241,9 +248,9 @@ namespace PhilosophySalon
                 if (index >= 0)
                 {
                     float targetWeight = 1.0f * viseme.weight * intensity;
-                    SetTargetWeight(index, targetWeight);
+                    currentWeights[index] = targetWeight;
 
-                    // Cache this mapping for future use
+                    // Cache this mapping
                     var newMapping = new VisemeBlendshapeMapping
                     {
                         visemeName = viseme.viseme,
