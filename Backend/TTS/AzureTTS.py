@@ -52,12 +52,12 @@ class AzureTTS:
         self.output_dir = output_dir
         self.utterance_count = 0
 
-        # Default voice map for philosophers
+        # Default voice map for philosophers (should match agents/configs/*.yaml)
         self.voice_map = voice_map or {
-            "Aristotle": "en-US-DavisNeural",      # Deep, authoritative
-            "Sartre": "en-GB-RyanNeural",          # British, intellectual
-            "Wittgenstein": "en-US-GuyNeural",     # Clear, precise
-            "Russell": "en-GB-AlfieNeural",        # British, scholarly
+            "Aristotle": "en-US-GuyNeural",
+            "Sartre": "en-US-ChristopherNeural",
+            "Russell": "en-GB-RyanNeural",
+            "Wittgenstein": "en-GB-ThomasNeural",
         }
 
         os.makedirs(self.output_dir, exist_ok=True)
