@@ -115,10 +115,12 @@ namespace PhilosophySalon
             }
         }
 
-        public void PlayLipSync(VisemeEvent[] visemeData)
+        public void PlayLipSync(VisemeEvent[] visemeData, AudioSource audioSource = null)
         {
             if (lipSyncController != null)
             {
+                // Set audio source for precise sync
+                lipSyncController.syncAudioSource = audioSource;
                 lipSyncController.PlayVisemeSequence(visemeData);
             }
         }

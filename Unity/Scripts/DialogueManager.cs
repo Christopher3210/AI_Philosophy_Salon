@@ -178,10 +178,10 @@ namespace PhilosophySalon
                         audioSource.clip = clip;
                         audioSource.Play();
 
-                        // Start lip sync
+                        // Start lip sync with audio source for precise sync
                         if (visemeData != null && visemeData.Length > 0)
                         {
-                            agent.PlayLipSync(visemeData);
+                            agent.PlayLipSync(visemeData, audioSource);
                         }
 
                         // Wait for audio to finish

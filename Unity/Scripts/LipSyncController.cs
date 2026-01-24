@@ -33,6 +33,10 @@ namespace PhilosophySalon
         [Range(0f, 1f)]
         public float intensity = 1f;
 
+        [Header("Audio Sync")]
+        [Tooltip("Link to AudioSource for precise sync")]
+        public AudioSource syncAudioSource;
+
         private Dictionary<string, VisemeBlendshapeMapping> visemeMap;
         private Coroutine currentLipSyncCoroutine;
         private bool isPlaying = false;
@@ -172,13 +176,22 @@ namespace PhilosophySalon
         IEnumerator PlayVisemeSequenceCoroutine(VisemeEvent[] visemeData)
         {
             isPlaying = true;
-            float startTime = Time.time;
+            float startTime = Time.unscaledTime;  // Use unscaled time as fallback
 
             int currentIndex = 0;
 
             while (isPlaying && currentIndex < visemeData.Length)
             {
-                float elapsed = Time.time - startTime;
+                // Use AudioSource.time for precise sync, fallback to elapsed time
+                float elapsed;
+                if (syncAudioSource != null && syncAudioSource.isPlaying)
+                {
+                    elapsed = syncAudioSource.time;
+                }
+                else
+                {
+                    elapsed = Time.unscaledTime - startTime;
+                }
 
                 // Process all visemes that should have started by now
                 while (currentIndex < visemeData.Length && visemeData[currentIndex].time <= elapsed)
