@@ -15,7 +15,7 @@ namespace PhilosophySalon
         public string visemeName;      // Viseme ID from Azure (e.g., "aa", "sil")
         public string blendshapeName;  // BlendShape name in model (e.g., "viseme_aa")
         public int blendshapeIndex;    // Cached index for performance
-        public float maxWeight = 100f; // Maximum weight for this viseme
+        public float maxWeight = 1.0f; // Maximum weight (use 1.0 for 0-1 range models)
     }
 
     public class LipSyncController : MonoBehaviour
@@ -31,8 +31,8 @@ namespace PhilosophySalon
         [Range(0.01f, 0.2f)]
         public float blendSpeed = 0.1f;
         [Range(0f, 1f)]
-        [Tooltip("Reduce this if mouth deforms too much (try 0.3-0.5)")]
-        public float intensity = 0.4f;  // Default reduced for most models
+        [Tooltip("Overall lip sync strength")]
+        public float intensity = 0.7f;
 
         [Header("Audio Sync")]
         [Tooltip("Link to AudioSource for precise sync")]
@@ -128,7 +128,7 @@ namespace PhilosophySalon
                         visemeName = visemeName,
                         blendshapeName = blendshapeName,
                         blendshapeIndex = index,
-                        maxWeight = 50f  // Reduced default to prevent over-deformation
+                        maxWeight = 1.0f  // For models with 0-1 BlendShape range
                     });
                     Debug.Log($"[LipSync] Mapped {visemeName} -> {blendshapeName} (index {index})");
                 }
@@ -240,7 +240,7 @@ namespace PhilosophySalon
 
                 if (index >= 0)
                 {
-                    float targetWeight = 100f * viseme.weight * intensity;
+                    float targetWeight = 1.0f * viseme.weight * intensity;
                     SetTargetWeight(index, targetWeight);
 
                     // Cache this mapping for future use
@@ -249,7 +249,7 @@ namespace PhilosophySalon
                         visemeName = viseme.viseme,
                         blendshapeName = blendshapeName,
                         blendshapeIndex = index,
-                        maxWeight = 100f
+                        maxWeight = 1.0f
                     };
                     visemeMap[viseme.viseme] = newMapping;
                 }
