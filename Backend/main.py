@@ -5,7 +5,7 @@ import time
 from agents.agents_manager import AgentsManager
 from controller import TurnTakingController
 from llm.model_manager import ModelManager
-from tts.SimpleTTS import SimpleTTS
+from tts.AzureTTS import AzureTTS
 
 
 def main():
@@ -15,9 +15,14 @@ def main():
     # 2. Load agents from YAML configs
     agents_manager = AgentsManager(cfg_dir="agents/configs")
 
-    # 3. Setup TTS (optional but recommended)
+    # 3. Setup Azure TTS with viseme support
     voice_map = {agent.name: agent.voice for agent in agents_manager.get_all_agents()}
-    tts_engine = SimpleTTS(voice_map=voice_map, output_dir="tts_output")
+    tts_engine = AzureTTS(
+        subscription_key="GGOrbCc2fBt6m6hbwdrZH0oi8VyX7uq1Vl2wvb63X8XJ6b0PScL2JQQJ99CAACYeBjFXJ3w3AAAYACOGEacn",
+        region="eastus",
+        voice_map=voice_map,
+        output_dir="tts_output"
+    )
     tts_engine.clear_output()
 
     # 4. Ask user for debate intensity (conviviality)

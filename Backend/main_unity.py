@@ -6,8 +6,8 @@ import os
 from agents.agents_manager import AgentsManager
 from controller import TurnTakingController
 from llm.model_manager import ModelManager
-from tts.SimpleTTS import SimpleTTS
-from unity_bridge import WebSocketServer, generate_viseme_data
+from tts.AzureTTS import AzureTTS
+from unity_bridge import WebSocketServer
 
 
 class UnityDialogueController:
@@ -19,7 +19,7 @@ class UnityDialogueController:
         self,
         model_manager: ModelManager,
         agents_manager: AgentsManager,
-        tts_engine: SimpleTTS,
+        tts_engine: AzureTTS,
         websocket_server: WebSocketServer,
         history_window: int = 8,
         conviviality: float = 0.5
@@ -117,9 +117,8 @@ class UnityDialogueController:
 
         reply = reply.replace("\n", " ").strip()
 
-        # Generate TTS and viseme data
-        audio_path = await self._generate_speech(agent.name, reply)
-        viseme_data = generate_viseme_data(reply, audio_duration=self._estimate_duration(reply))
+        # Generate TTS and viseme data (Azure returns both)
+        audio_path, viseme_data = await self._generate_speech(agent.name, reply, is_qa=True)
 
         # Send to Unity
         await self.ws_server.send_agent_response(
@@ -135,29 +134,24 @@ class UnityDialogueController:
         self.history.append({"agent": agent.name, "response": reply})
         self.speech_count += 1
 
-    async def _generate_speech(self, speaker_name: str, text: str) -> str:
-        """Generate TTS audio and return path."""
+    async def _generate_speech(self, speaker_name: str, text: str, is_qa: bool = False):
+        """Generate TTS audio and viseme data using Azure TTS."""
         if self.tts is None:
-            return ""
+            return "", []
 
         try:
-            filepath = await self.tts.speak(
+            # AzureTTS.speak_async returns (audio_path, viseme_data)
+            audio_path, viseme_data = await self.tts.speak_async(
                 speaker_name=speaker_name,
                 text=text,
                 turn=self.speech_count,
                 index=0,
-                is_qa=False
+                is_qa=is_qa
             )
-            return filepath
+            return audio_path or "", viseme_data or []
         except Exception as e:
             print(f"[TTS] Error: {e}")
-            return ""
-
-    def _estimate_duration(self, text: str) -> float:
-        """Estimate audio duration from text length."""
-        # Rough estimate: 150 words per minute, 5 chars per word
-        words = len(text.split())
-        return max(1.0, words / 2.5)  # seconds
+            return "", []
 
     async def run_dialogue(self, topic: str):
         """Run dialogue with Unity frontend integration."""
@@ -259,12 +253,8 @@ class UnityDialogueController:
                     if reply.startswith(":"):
                         reply = reply[1:].strip()
 
-                # Generate TTS audio
-                audio_path = await self._generate_speech(speaker.name, reply)
-
-                # Generate viseme data
-                audio_duration = self._estimate_duration(reply)
-                viseme_data = generate_viseme_data(reply, audio_duration)
+                # Generate TTS audio and viseme data (Azure returns both)
+                audio_path, viseme_data = await self._generate_speech(speaker.name, reply)
 
                 # Send response to Unity
                 await self.ws_server.send_agent_response(
@@ -334,8 +324,16 @@ async def main():
     model_manager = ModelManager()
     agents_manager = AgentsManager(cfg_dir="agents/configs")
 
+    # Build voice map from agent configs
     voice_map = {agent.name: agent.voice for agent in agents_manager.get_all_agents()}
-    tts_engine = SimpleTTS(voice_map=voice_map, output_dir="tts_output")
+
+    # Initialize Azure TTS with viseme support
+    tts_engine = AzureTTS(
+        subscription_key="GGOrbCc2fBt6m6hbwdrZH0oi8VyX7uq1Vl2wvb63X8XJ6b0PScL2JQQJ99CAACYeBjFXJ3w3AAAYACOGEacn",
+        region="eastus",
+        voice_map=voice_map,
+        output_dir="tts_output"
+    )
     tts_engine.clear_output()
 
     # 2. Start WebSocket server

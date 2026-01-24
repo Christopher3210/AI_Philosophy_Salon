@@ -1,5 +1,6 @@
 // LipSyncController.cs
 // Controls lip sync animation using blendshapes based on viseme data
+// Supports Oculus/Meta standard 15 visemes
 
 using System.Collections;
 using System.Collections.Generic;
@@ -7,12 +8,23 @@ using UnityEngine;
 
 namespace PhilosophySalon
 {
+    // Mapping structure for viseme to blendshape
+    [System.Serializable]
+    public class VisemeBlendshapeMapping
+    {
+        public string visemeName;      // Viseme ID from Azure (e.g., "aa", "sil")
+        public string blendshapeName;  // BlendShape name in model (e.g., "viseme_aa")
+        public int blendshapeIndex;    // Cached index for performance
+        public float maxWeight = 100f; // Maximum weight for this viseme
+    }
+
     public class LipSyncController : MonoBehaviour
     {
         [Header("Face Mesh")]
         public SkinnedMeshRenderer faceRenderer;
 
         [Header("Viseme Mappings")]
+        [Tooltip("Auto-populated on Awake if empty")]
         public VisemeBlendshapeMapping[] visemeMappings;
 
         [Header("Animation Settings")]
@@ -28,6 +40,31 @@ namespace PhilosophySalon
         // Track current blendshape weights for smooth transitions
         private Dictionary<int, float> currentWeights = new Dictionary<int, float>();
 
+        // Oculus/Meta standard viseme names (matches Azure TTS output)
+        // Azure outputs: sil, aa, O, E, I, U, nn, RR, kk, TH, FF, DD, SS
+        // Model BlendShapes: viseme_sil, viseme_PP, viseme_FF, viseme_TH, viseme_DD,
+        //                    viseme_kk, viseme_CH, viseme_SS, viseme_nn, viseme_RR,
+        //                    viseme_aa, viseme_E, viseme_I, viseme_O, viseme_U
+        private static readonly Dictionary<string, string> AZURE_TO_BLENDSHAPE = new Dictionary<string, string>
+        {
+            { "sil", "viseme_sil" },
+            { "aa", "viseme_aa" },
+            { "E", "viseme_E" },
+            { "I", "viseme_I" },
+            { "O", "viseme_O" },
+            { "U", "viseme_U" },
+            { "FF", "viseme_FF" },
+            { "TH", "viseme_TH" },
+            { "DD", "viseme_DD" },
+            { "kk", "viseme_kk" },
+            { "SS", "viseme_SS" },
+            { "nn", "viseme_nn" },
+            { "RR", "viseme_RR" },
+            // These visemes may be triggered by certain phonemes
+            { "PP", "viseme_PP" },  // bilabial plosives (p, b, m)
+            { "CH", "viseme_CH" },  // affricates (ch, j)
+        };
+
         void Awake()
         {
             BuildVisemeMap();
@@ -37,22 +74,78 @@ namespace PhilosophySalon
         {
             visemeMap = new Dictionary<string, VisemeBlendshapeMapping>();
 
+            // If no mappings provided, auto-generate from standard Oculus visemes
+            if (visemeMappings == null || visemeMappings.Length == 0)
+            {
+                AutoGenerateMappings();
+            }
+
+            // Build the lookup dictionary
             if (visemeMappings != null)
             {
                 foreach (var mapping in visemeMappings)
                 {
                     if (!string.IsNullOrEmpty(mapping.visemeName))
                     {
+                        // Find blendshape index if not cached
+                        if (mapping.blendshapeIndex < 0)
+                        {
+                            mapping.blendshapeIndex = FindBlendshapeIndexByName(mapping.blendshapeName);
+                        }
                         visemeMap[mapping.visemeName] = mapping;
                     }
                 }
             }
 
-            // Add default mappings if none provided
-            if (visemeMap.Count == 0)
+            Debug.Log($"[LipSync] Initialized with {visemeMap.Count} viseme mappings");
+        }
+
+        void AutoGenerateMappings()
+        {
+            if (faceRenderer == null || faceRenderer.sharedMesh == null)
             {
-                Debug.LogWarning("[LipSync] No viseme mappings provided. Using default search.");
+                Debug.LogWarning("[LipSync] Cannot auto-generate mappings: no face renderer");
+                return;
             }
+
+            var mappingList = new List<VisemeBlendshapeMapping>();
+
+            foreach (var kvp in AZURE_TO_BLENDSHAPE)
+            {
+                string visemeName = kvp.Key;
+                string blendshapeName = kvp.Value;
+
+                int index = FindBlendshapeIndexByName(blendshapeName);
+                if (index >= 0)
+                {
+                    mappingList.Add(new VisemeBlendshapeMapping
+                    {
+                        visemeName = visemeName,
+                        blendshapeName = blendshapeName,
+                        blendshapeIndex = index,
+                        maxWeight = 100f
+                    });
+                    Debug.Log($"[LipSync] Mapped {visemeName} -> {blendshapeName} (index {index})");
+                }
+            }
+
+            visemeMappings = mappingList.ToArray();
+            Debug.Log($"[LipSync] Auto-generated {visemeMappings.Length} viseme mappings");
+        }
+
+        int FindBlendshapeIndexByName(string blendshapeName)
+        {
+            if (faceRenderer == null || faceRenderer.sharedMesh == null) return -1;
+
+            Mesh mesh = faceRenderer.sharedMesh;
+            for (int i = 0; i < mesh.blendShapeCount; i++)
+            {
+                if (mesh.GetBlendShapeName(i).Equals(blendshapeName, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+            return -1;
         }
 
         public void PlayVisemeSequence(VisemeEvent[] visemeData)
@@ -109,75 +202,43 @@ namespace PhilosophySalon
         {
             if (string.IsNullOrEmpty(viseme.viseme)) return;
 
-            // Try to find mapping
+            // Try to find mapping from pre-built map
             if (visemeMap.TryGetValue(viseme.viseme, out VisemeBlendshapeMapping mapping))
             {
-                float targetWeight = mapping.maxWeight * viseme.weight * intensity;
-                SetTargetWeight(mapping.blendshapeIndex, targetWeight);
+                if (mapping.blendshapeIndex >= 0)
+                {
+                    float targetWeight = mapping.maxWeight * viseme.weight * intensity;
+                    SetTargetWeight(mapping.blendshapeIndex, targetWeight);
+                }
             }
             else
             {
-                // Try to find blendshape by name
-                int index = FindBlendshapeIndex(viseme.viseme);
+                // Fallback: Try to find blendshape directly
+                // First try with "viseme_" prefix
+                string blendshapeName = "viseme_" + viseme.viseme;
+                int index = FindBlendshapeIndexByName(blendshapeName);
+
+                // If not found, try without prefix
+                if (index < 0)
+                {
+                    index = FindBlendshapeIndexByName(viseme.viseme);
+                }
+
                 if (index >= 0)
                 {
                     float targetWeight = 100f * viseme.weight * intensity;
                     SetTargetWeight(index, targetWeight);
+
+                    // Cache this mapping for future use
+                    var newMapping = new VisemeBlendshapeMapping
+                    {
+                        visemeName = viseme.viseme,
+                        blendshapeName = blendshapeName,
+                        blendshapeIndex = index,
+                        maxWeight = 100f
+                    };
+                    visemeMap[viseme.viseme] = newMapping;
                 }
-            }
-        }
-
-        int FindBlendshapeIndex(string visemeName)
-        {
-            if (faceRenderer == null || faceRenderer.sharedMesh == null) return -1;
-
-            Mesh mesh = faceRenderer.sharedMesh;
-
-            // Try exact match first
-            for (int i = 0; i < mesh.blendShapeCount; i++)
-            {
-                string shapeName = mesh.GetBlendShapeName(i);
-                if (shapeName.Equals(visemeName, System.StringComparison.OrdinalIgnoreCase))
-                {
-                    return i;
-                }
-            }
-
-            // Try partial match
-            string searchTerm = GetBlendshapeSearchTerm(visemeName);
-            for (int i = 0; i < mesh.blendShapeCount; i++)
-            {
-                string shapeName = mesh.GetBlendShapeName(i).ToLower();
-                if (shapeName.Contains(searchTerm))
-                {
-                    return i;
-                }
-            }
-
-            return -1;
-        }
-
-        string GetBlendshapeSearchTerm(string visemeName)
-        {
-            // Map viseme names to common blendshape naming conventions
-            switch (visemeName.ToLower())
-            {
-                case "aa": return "jaw"; // or "mouth_open"
-                case "oh": return "funnel"; // or "mouth_o"
-                case "ou": return "pucker";
-                case "e": return "smile";
-                case "ih": return "smile";
-                case "pp": return "close"; // or "mouth_close"
-                case "ff": return "funnel";
-                case "th": return "tongue";
-                case "dd": return "jaw";
-                case "kk": return "open";
-                case "ch": return "shrug";
-                case "ss": return "smile";
-                case "nn": return "close";
-                case "rr": return "pucker";
-                case "sil": return "close";
-                default: return visemeName.ToLower();
             }
         }
 

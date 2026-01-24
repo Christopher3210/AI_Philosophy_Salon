@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 
 from agents.agents_manager import AgentsManager
 from llm.model_manager import ModelManager
-from tts.SimpleTTS import SimpleTTS
+from tts.AzureTTS import AzureTTS
 
 from .speaker_selector import SpeakerSelector
 from .interrupt_handler import InterruptHandler
@@ -30,7 +30,7 @@ class DialogueController:
         self,
         model_manager: ModelManager,
         agents_manager: AgentsManager,
-        tts_engine: SimpleTTS | None = None,
+        tts_engine: AzureTTS | None = None,
         history_window: int = 6,
         conviviality: float = 0.5,
     ):
@@ -41,8 +41,8 @@ class DialogueController:
             Wrapper around local HF models
         agents_manager : AgentsManager
             Loads Agent objects from YAML configs
-        tts_engine : SimpleTTS | None
-            Optional TTS engine for speech synthesis
+        tts_engine : AzureTTS | None
+            Optional TTS engine for speech synthesis with viseme support
         history_window : int
             Number of recent utterances to include in context
         conviviality : float
@@ -253,7 +253,8 @@ class DialogueController:
                 # TTS playback (complete before checking interrupt)
                 if self.tts is not None:
                     try:
-                        await self.tts.speak(
+                        # AzureTTS returns (audio_path, viseme_data)
+                        audio_path, viseme_data = await self.tts.speak_async(
                             speaker_name=speaker.name,
                             text=reply,
                             turn=self.speech_count,

@@ -146,11 +146,5 @@ namespace PhilosophySalon
         public float CurrentMotivation => currentMotivation;
     }
 
-    [System.Serializable]
-    public class VisemeBlendshapeMapping
-    {
-        public string visemeName; // e.g., "aa", "oh", "PP"
-        public int blendshapeIndex; // Index in SkinnedMeshRenderer
-        public float maxWeight = 100f; // Maximum blendshape weight
-    }
+    // Note: VisemeBlendshapeMapping class is defined in LipSyncController.cs
 }
