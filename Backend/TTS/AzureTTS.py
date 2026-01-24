@@ -4,11 +4,22 @@ import json
 from datetime import datetime
 from typing import List, Dict, Tuple
 
+# Audio playback - try pygame first (more stable), fallback to playsound
+HAS_AUDIO = False
+AUDIO_BACKEND = None
+
 try:
-    from playsound import playsound
-    HAS_PLAYSOUND = True
+    import pygame
+    pygame.mixer.init()
+    HAS_AUDIO = True
+    AUDIO_BACKEND = "pygame"
 except ImportError:
-    HAS_PLAYSOUND = False
+    try:
+        from playsound import playsound
+        HAS_AUDIO = True
+        AUDIO_BACKEND = "playsound"
+    except ImportError:
+        pass
 
 class AzureTTS:
     """
@@ -70,8 +81,8 @@ class AzureTTS:
 
         os.makedirs(self.output_dir, exist_ok=True)
 
-        if self.auto_play and not HAS_PLAYSOUND:
-            print("[AzureTTS] Warning: playsound not installed, auto_play disabled. Run: pip install playsound")
+        if self.auto_play and not HAS_AUDIO:
+            print("[AzureTTS] Warning: No audio backend available. Run: pip install pygame")
 
     def _create_speech_config(self, voice_name: str) -> speechsdk.SpeechConfig:
         """Create speech config with viseme enabled."""
@@ -103,12 +114,12 @@ class AzureTTS:
         """
         self.utterance_count += 1
 
-        # Create output folder
+        # Create output folder (use absolute path for Unity compatibility)
         folder_name = f"turn{turn}_QA" if is_qa else f"turn{turn}"
-        turn_folder = os.path.join(self.output_dir, folder_name)
+        turn_folder = os.path.abspath(os.path.join(self.output_dir, folder_name))
         os.makedirs(turn_folder, exist_ok=True)
 
-        # Generate filename
+        # Generate filename with absolute path
         timestamp = datetime.now().strftime("%H%M%S")
         filename = f"{speaker_name}_{timestamp}_{self.utterance_count:03d}.mp3"
         filepath = os.path.join(turn_folder, filename)
@@ -159,9 +170,16 @@ class AzureTTS:
             print(f"[AzureTTS] Visemes → {viseme_path} ({len(viseme_data)} events)")
 
             # Auto play if enabled
-            if self.auto_play and HAS_PLAYSOUND:
+            if self.auto_play and HAS_AUDIO:
                 try:
-                    playsound(filepath)
+                    if AUDIO_BACKEND == "pygame":
+                        import pygame
+                        pygame.mixer.music.load(filepath)
+                        pygame.mixer.music.play()
+                        while pygame.mixer.music.get_busy():
+                            pygame.time.wait(100)
+                    else:
+                        playsound(filepath)
                 except Exception as e:
                     print(f"[AzureTTS] Playback error: {e}")
 

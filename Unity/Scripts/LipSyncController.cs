@@ -31,7 +31,8 @@ namespace PhilosophySalon
         [Range(0.01f, 0.2f)]
         public float blendSpeed = 0.1f;
         [Range(0f, 1f)]
-        public float intensity = 1f;
+        [Tooltip("Reduce this if mouth deforms too much (try 0.3-0.5)")]
+        public float intensity = 0.4f;  // Default reduced for most models
 
         [Header("Audio Sync")]
         [Tooltip("Link to AudioSource for precise sync")]
@@ -127,7 +128,7 @@ namespace PhilosophySalon
                         visemeName = visemeName,
                         blendshapeName = blendshapeName,
                         blendshapeIndex = index,
-                        maxWeight = 100f
+                        maxWeight = 50f  // Reduced default to prevent over-deformation
                     });
                     Debug.Log($"[LipSync] Mapped {visemeName} -> {blendshapeName} (index {index})");
                 }
