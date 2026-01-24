@@ -15,13 +15,14 @@ def main():
     # 2. Load agents from YAML configs
     agents_manager = AgentsManager(cfg_dir="agents/configs")
 
-    # 3. Setup Azure TTS with viseme support
+    # 3. Setup Azure TTS with viseme support (auto_play for terminal mode)
     voice_map = {agent.name: agent.voice for agent in agents_manager.get_all_agents()}
     tts_engine = AzureTTS(
         subscription_key="GGOrbCc2fBt6m6hbwdrZH0oi8VyX7uq1Vl2wvb63X8XJ6b0PScL2JQQJ99CAACYeBjFXJ3w3AAAYACOGEacn",
         region="eastus",
         voice_map=voice_map,
-        output_dir="tts_output"
+        output_dir="tts_output",
+        auto_play=True  # Play audio in terminal mode
     )
     tts_engine.clear_output()
 

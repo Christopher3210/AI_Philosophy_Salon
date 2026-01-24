@@ -4,6 +4,12 @@ import json
 from datetime import datetime
 from typing import List, Dict, Tuple
 
+try:
+    from playsound import playsound
+    HAS_PLAYSOUND = True
+except ImportError:
+    HAS_PLAYSOUND = False
+
 class AzureTTS:
     """
     Azure Speech Services TTS with Viseme support.
@@ -37,7 +43,7 @@ class AzureTTS:
         21: "SS",   # s, z
     }
 
-    def __init__(self, subscription_key: str, region: str, voice_map: Dict[str, str] = None, output_dir: str = "tts_output"):
+    def __init__(self, subscription_key: str, region: str, voice_map: Dict[str, str] = None, output_dir: str = "tts_output", auto_play: bool = False):
         """
         Initialize Azure TTS.
 
@@ -46,11 +52,13 @@ class AzureTTS:
             region: Azure region (e.g., "eastus")
             voice_map: Dict mapping speaker name to Azure voice name
             output_dir: Directory to save audio files
+            auto_play: Whether to automatically play audio after generation
         """
         self.subscription_key = subscription_key
         self.region = region
         self.output_dir = output_dir
         self.utterance_count = 0
+        self.auto_play = auto_play
 
         # Default voice map for philosophers (should match agents/configs/*.yaml)
         self.voice_map = voice_map or {
@@ -61,6 +69,9 @@ class AzureTTS:
         }
 
         os.makedirs(self.output_dir, exist_ok=True)
+
+        if self.auto_play and not HAS_PLAYSOUND:
+            print("[AzureTTS] Warning: playsound not installed, auto_play disabled. Run: pip install playsound")
 
     def _create_speech_config(self, voice_name: str) -> speechsdk.SpeechConfig:
         """Create speech config with viseme enabled."""
@@ -146,6 +157,13 @@ class AzureTTS:
             with open(viseme_path, "w") as f:
                 json.dump(viseme_data, f, indent=2)
             print(f"[AzureTTS] Visemes → {viseme_path} ({len(viseme_data)} events)")
+
+            # Auto play if enabled
+            if self.auto_play and HAS_PLAYSOUND:
+                try:
+                    playsound(filepath)
+                except Exception as e:
+                    print(f"[AzureTTS] Playback error: {e}")
 
             return filepath, viseme_data
 
