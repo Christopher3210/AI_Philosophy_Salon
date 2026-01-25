@@ -301,8 +301,10 @@ class UnityDialogueController:
                 # Estimate duration: ~150 words per minute, average 5 chars per word
                 words = len(reply.split())
                 estimated_duration = max(2.0, words / 2.5)  # At least 2 seconds
-                print(f"[Dialogue] Waiting {estimated_duration:.1f}s for audio playback...")
-                await asyncio.sleep(estimated_duration + 0.5)  # Add 0.5s buffer
+                thinking_pause = 5.0  # Extra pause for natural pacing
+                total_wait = estimated_duration + thinking_pause
+                print(f"[Dialogue] Waiting {total_wait:.1f}s (audio: {estimated_duration:.1f}s + thinking: {thinking_pause:.1f}s)")
+                await asyncio.sleep(total_wait)
 
         except asyncio.CancelledError:
             print("\n[Dialogue] Cancelled")
