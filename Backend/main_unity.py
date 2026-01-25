@@ -5,7 +5,7 @@ import asyncio
 import os
 from agents.agents_manager import AgentsManager
 from controller import TurnTakingController
-from llm.model_manager import ModelManager
+from llm.cloud_model_manager import CloudModelManager as ModelManager
 from tts.AzureTTS import AzureTTS
 from unity_bridge import WebSocketServer
 
@@ -320,8 +320,10 @@ class UnityDialogueController:
 async def main():
     """Main entry point for Unity mode."""
 
-    # 1. Initialize components
-    model_manager = ModelManager()
+    # 1. Initialize components (using OpenAI API for fast responses)
+    model_manager = ModelManager(
+        api_key="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"
+    )
     agents_manager = AgentsManager(cfg_dir="agents/configs")
 
     # Build voice map from agent configs
