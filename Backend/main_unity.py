@@ -297,8 +297,12 @@ class UnityDialogueController:
 
                 print(f"[{speaker.name}] {reply}\n")
 
-                # Wait a moment before next turn
-                await asyncio.sleep(0.5)
+                # Wait for audio to finish playing before next turn
+                # Estimate duration: ~150 words per minute, average 5 chars per word
+                words = len(reply.split())
+                estimated_duration = max(2.0, words / 2.5)  # At least 2 seconds
+                print(f"[Dialogue] Waiting {estimated_duration:.1f}s for audio playback...")
+                await asyncio.sleep(estimated_duration + 0.5)  # Add 0.5s buffer
 
         except asyncio.CancelledError:
             print("\n[Dialogue] Cancelled")
@@ -322,7 +326,7 @@ async def main():
 
     # 1. Initialize components (using OpenAI API for fast responses)
     model_manager = ModelManager(
-        api_key="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"
+        api_key="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"
     )
     agents_manager = AgentsManager(cfg_dir="agents/configs")
 
