@@ -15,7 +15,7 @@ namespace PhilosophySalon
         public string visemeName;      // Viseme ID from Azure (e.g., "aa", "sil")
         public string blendshapeName;  // BlendShape name in model (e.g., "viseme_aa")
         public int blendshapeIndex;    // Cached index for performance
-        public float maxWeight = 1.0f; // Maximum weight (use 1.0 for 0-1 range models)
+        public float maxWeight = 100.0f; // Maximum weight (use 100.0 for 0-100 range models)
     }
 
     public class LipSyncController : MonoBehaviour
@@ -128,7 +128,7 @@ namespace PhilosophySalon
                         visemeName = visemeName,
                         blendshapeName = blendshapeName,
                         blendshapeIndex = index,
-                        maxWeight = 1.0f  // For models with 0-1 BlendShape range
+                        maxWeight = 100.0f  // For models with 0-100 BlendShape range
                     });
                     Debug.Log($"[LipSync] Mapped {visemeName} -> {blendshapeName} (index {index})");
                 }
@@ -247,7 +247,7 @@ namespace PhilosophySalon
 
                 if (index >= 0)
                 {
-                    float targetWeight = 1.0f * viseme.weight * intensity;
+                    float targetWeight = 100.0f * viseme.weight * intensity;
                     currentWeights[index] = targetWeight;
 
                     // Cache this mapping
@@ -256,7 +256,7 @@ namespace PhilosophySalon
                         visemeName = viseme.viseme,
                         blendshapeName = blendshapeName,
                         blendshapeIndex = index,
-                        maxWeight = 1.0f
+                        maxWeight = 100.0f
                     };
                     visemeMap[viseme.viseme] = newMapping;
                 }
