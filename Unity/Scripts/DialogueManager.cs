@@ -12,6 +12,7 @@ namespace PhilosophySalon
         [Header("References")]
         public WebSocketClient webSocketClient;
         public UIManager uiManager;
+        public SubtitleManager subtitleManager;
         public AudioSource audioSource;
 
         [Header("Agent Controllers")]
@@ -121,7 +122,7 @@ namespace PhilosophySalon
             // Load and play audio if available
             if (!string.IsNullOrEmpty(response.audio_path))
             {
-                yield return StartCoroutine(LoadAndPlayAudio(response.audio_path, agent, response.viseme_data));
+                yield return StartCoroutine(LoadAndPlayAudio(response.audio_path, agent, response.viseme_data, response.text));
             }
             else
             {
@@ -134,6 +135,9 @@ namespace PhilosophySalon
                         totalDuration = Mathf.Max(totalDuration, v.time + v.duration);
                     }
 
+                    // Show subtitle
+                    subtitleManager?.ShowSubtitle(response.agent, response.text, totalDuration);
+
                     // Play lip sync without audio
                     agent.PlayLipSync(response.viseme_data);
                     yield return new WaitForSeconds(totalDuration);
@@ -142,16 +146,23 @@ namespace PhilosophySalon
                 {
                     // Estimate duration from text length
                     float duration = response.text.Split(' ').Length / 2.5f;
+
+                    // Show subtitle
+                    subtitleManager?.ShowSubtitle(response.agent, response.text, duration);
+
                     yield return new WaitForSeconds(duration);
                 }
             }
+
+            // Hide subtitle
+            subtitleManager?.HideSubtitle();
 
             // Return to idle
             agent.SetIdle();
             isPlaying = false;
         }
 
-        IEnumerator LoadAndPlayAudio(string audioPath, AgentController agent, VisemeEvent[] visemeData)
+        IEnumerator LoadAndPlayAudio(string audioPath, AgentController agent, VisemeEvent[] visemeData, string text = "")
         {
             // Convert path for Unity
             string unityPath = audioPath.Replace("\\", "/");
@@ -174,6 +185,12 @@ namespace PhilosophySalon
 
                     if (clip != null)
                     {
+                        // Show subtitle synced with audio
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            subtitleManager?.ShowSubtitleWithAudio(agent.agentName, text, clip.length);
+                        }
+
                         // Play audio
                         audioSource.clip = clip;
                         audioSource.Play();
@@ -226,6 +243,15 @@ namespace PhilosophySalon
             foreach (var agent in agentControllers)
             {
                 agent?.SetIdle();
+            }
+
+            // Hide subtitle
+            subtitleManager?.HideImmediate();
+
+            // Stop audio
+            if (audioSource != null && audioSource.isPlaying)
+            {
+                audioSource.Stop();
             }
         }
 
