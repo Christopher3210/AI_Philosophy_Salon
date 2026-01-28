@@ -74,21 +74,19 @@ namespace PhilosophySalon
             subtitleObj.transform.SetParent(subtitlePanel.transform, false);
 
             RectTransform subtitleRect = subtitleObj.AddComponent<RectTransform>();
-            subtitleRect.anchorMin = new Vector2(0, 0);
-            subtitleRect.anchorMax = new Vector2(1, 1);
+            subtitleRect.anchorMin = Vector2.zero;
+            subtitleRect.anchorMax = Vector2.one;
+            subtitleRect.pivot = new Vector2(0, 0.5f);
             subtitleRect.offsetMin = new Vector2(70, 2);
-            subtitleRect.offsetMax = new Vector2(-3, -2);
-            subtitleRect.sizeDelta = Vector2.zero;
+            subtitleRect.offsetMax = new Vector2(-5, -2);
 
             TextMeshProUGUI subtitleText = subtitleObj.AddComponent<TextMeshProUGUI>();
             subtitleText.text = "";
             subtitleText.fontSize = 10;
             subtitleText.color = Color.white;
-            subtitleText.alignment = TextAlignmentOptions.Left;
-            subtitleText.verticalAlignment = VerticalAlignmentOptions.Middle;
+            subtitleText.alignment = TextAlignmentOptions.TopLeft;
             subtitleText.enableWordWrapping = true;
             subtitleText.overflowMode = TextOverflowModes.Ellipsis;
-            subtitleText.wordWrappingRatios = 0.4f;
 
             // Create or find SubtitleManager
             SubtitleManager manager = FindObjectOfType<SubtitleManager>();
