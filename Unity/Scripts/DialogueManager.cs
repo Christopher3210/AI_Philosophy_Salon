@@ -27,6 +27,10 @@ namespace PhilosophySalon
 
         void Start()
         {
+            // Load conviviality from settings
+            conviviality = PlayerPrefs.GetFloat("Conviviality", 0.5f);
+            Debug.Log($"[DialogueManager] Loaded conviviality: {conviviality}");
+
             // Build agent map
             foreach (var agent in agentControllers)
             {
@@ -54,6 +58,9 @@ namespace PhilosophySalon
         {
             Debug.Log("[DialogueManager] Connected to backend");
             uiManager?.SetConnectionStatus(true);
+
+            // Send conviviality setting to backend
+            webSocketClient?.SendSetConviviality(conviviality);
         }
 
         void OnDisconnected()

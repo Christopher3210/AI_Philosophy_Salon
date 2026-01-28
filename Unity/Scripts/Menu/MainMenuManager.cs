@@ -21,6 +21,8 @@ public class MainMenuManager : MonoBehaviour
     private GameObject mainMenuPanel;
     private SettingsPanel settingsPanel;
     private CanvasGroup fadeOverlay;
+    private Slider convivialitySlider;
+    private Text convivialityValueText;
 
     void Start()
     {
@@ -83,9 +85,31 @@ public class MainMenuManager : MonoBehaviour
             24, SettingsData.SubtitleColor, TextAnchor.MiddleCenter, FontStyle.Italic);
         UIFactory.SetRect(subtitle.gameObject, 0.5f, 0.62f, 600, 40);
 
+        // Conviviality slider section
+        GameObject sliderSection = UIFactory.CreateElement("ConvivialitySection", mainMenuPanel);
+        UIFactory.SetRect(sliderSection, 0.5f, 0.48f, 400, 80);
+
+        Text sliderLabel = UIFactory.CreateText(sliderSection, "Label", "Conviviality",
+            20, SettingsData.SubtitleColor, TextAnchor.MiddleCenter);
+        RectTransform labelRect = sliderLabel.GetComponent<RectTransform>();
+        labelRect.anchorMin = new Vector2(0, 0.6f);
+        labelRect.anchorMax = new Vector2(1, 1f);
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+
+        convivialitySlider = CreateConvivialitySlider(sliderSection);
+
+        convivialityValueText = UIFactory.CreateText(sliderSection, "Value", GetConvivialityLabel(SettingsData.Conviviality),
+            16, SettingsData.TitleColor, TextAnchor.MiddleCenter);
+        RectTransform valueRect = convivialityValueText.GetComponent<RectTransform>();
+        valueRect.anchorMin = new Vector2(0, 0f);
+        valueRect.anchorMax = new Vector2(1, 0.25f);
+        valueRect.offsetMin = Vector2.zero;
+        valueRect.offsetMax = Vector2.zero;
+
         // Button container
         GameObject buttonContainer = UIFactory.CreateElement("ButtonContainer", mainMenuPanel);
-        UIFactory.SetRect(buttonContainer, 0.5f, 0.38f, 300, 220);
+        UIFactory.SetRect(buttonContainer, 0.5f, 0.28f, 300, 180);
 
         VerticalLayoutGroup layout = buttonContainer.AddComponent<VerticalLayoutGroup>();
         layout.spacing = 15;
@@ -123,6 +147,78 @@ public class MainMenuManager : MonoBehaviour
         fadeOverlay.blocksRaycasts = true;
         UIFactory.SetFullScreen(fadeObj);
         fadeObj.transform.SetAsLastSibling();
+    }
+
+    private Slider CreateConvivialitySlider(GameObject parent)
+    {
+        GameObject sliderObj = UIFactory.CreateElement("Slider", parent);
+        RectTransform sliderRect = sliderObj.GetComponent<RectTransform>();
+        sliderRect.anchorMin = new Vector2(0.1f, 0.25f);
+        sliderRect.anchorMax = new Vector2(0.9f, 0.55f);
+        sliderRect.offsetMin = Vector2.zero;
+        sliderRect.offsetMax = Vector2.zero;
+
+        GameObject bgObj = UIFactory.CreateElement("Background", sliderObj);
+        Image bgImage = bgObj.AddComponent<Image>();
+        bgImage.color = new Color(0.2f, 0.2f, 0.25f, 1f);
+        UIFactory.SetFullScreen(bgObj);
+
+        GameObject fillArea = UIFactory.CreateElement("FillArea", sliderObj);
+        RectTransform fillAreaRect = fillArea.GetComponent<RectTransform>();
+        fillAreaRect.anchorMin = new Vector2(0, 0.25f);
+        fillAreaRect.anchorMax = new Vector2(1, 0.75f);
+        fillAreaRect.offsetMin = new Vector2(5, 0);
+        fillAreaRect.offsetMax = new Vector2(-5, 0);
+
+        GameObject fill = UIFactory.CreateElement("Fill", fillArea);
+        Image fillImage = fill.AddComponent<Image>();
+        fillImage.color = SettingsData.TitleColor;
+        RectTransform fillRect = fill.GetComponent<RectTransform>();
+        fillRect.anchorMin = Vector2.zero;
+        fillRect.anchorMax = Vector2.one;
+        fillRect.offsetMin = Vector2.zero;
+        fillRect.offsetMax = Vector2.zero;
+
+        GameObject handleArea = UIFactory.CreateElement("HandleArea", sliderObj);
+        RectTransform handleAreaRect = handleArea.GetComponent<RectTransform>();
+        handleAreaRect.anchorMin = Vector2.zero;
+        handleAreaRect.anchorMax = Vector2.one;
+        handleAreaRect.offsetMin = new Vector2(10, 0);
+        handleAreaRect.offsetMax = new Vector2(-10, 0);
+
+        GameObject handle = UIFactory.CreateElement("Handle", handleArea);
+        Image handleImage = handle.AddComponent<Image>();
+        handleImage.color = Color.white;
+        RectTransform handleRect = handle.GetComponent<RectTransform>();
+        handleRect.sizeDelta = new Vector2(20, 0);
+
+        Slider slider = sliderObj.AddComponent<Slider>();
+        slider.fillRect = fillRect;
+        slider.handleRect = handleRect;
+        slider.targetGraphic = handleImage;
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.minValue = 0f;
+        slider.maxValue = 1f;
+        slider.value = SettingsData.Conviviality;
+        slider.onValueChanged.AddListener(OnConvivialityChanged);
+
+        return slider;
+    }
+
+    private string GetConvivialityLabel(float value)
+    {
+        if (value < 0.33f) return "Heated Debate";
+        if (value < 0.66f) return "Balanced Discussion";
+        return "Friendly Exchange";
+    }
+
+    private void OnConvivialityChanged(float value)
+    {
+        SettingsData.Conviviality = value;
+        if (convivialityValueText != null)
+        {
+            convivialityValueText.text = GetConvivialityLabel(value);
+        }
     }
 
     // === Button Callbacks ===
