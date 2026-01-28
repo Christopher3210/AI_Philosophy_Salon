@@ -20,8 +20,19 @@ namespace PhilosophySalon
                 GameObject canvasObj = new GameObject("Canvas");
                 canvas = canvasObj.AddComponent<Canvas>();
                 canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-                canvasObj.AddComponent<CanvasScaler>();
+
+                CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
+                scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                scaler.referenceResolution = new Vector2(1920, 1080);
+
                 canvasObj.AddComponent<GraphicRaycaster>();
+            }
+
+            // Delete existing SubtitlePanel if any
+            Transform existingPanel = canvas.transform.Find("SubtitlePanel");
+            if (existingPanel != null)
+            {
+                DestroyImmediate(existingPanel.gameObject);
             }
 
             // Create Subtitle Panel
@@ -29,61 +40,55 @@ namespace PhilosophySalon
             subtitlePanel.transform.SetParent(canvas.transform, false);
 
             RectTransform panelRect = subtitlePanel.AddComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0.1f, 0.05f);
-            panelRect.anchorMax = new Vector2(0.9f, 0.2f);
-            panelRect.offsetMin = Vector2.zero;
-            panelRect.offsetMax = Vector2.zero;
+            panelRect.anchorMin = new Vector2(0.02f, 0f);
+            panelRect.anchorMax = new Vector2(0.98f, 0f);
+            panelRect.pivot = new Vector2(0.5f, 0f);
+            panelRect.anchoredPosition = new Vector2(0, 5);
+            panelRect.sizeDelta = new Vector2(0, 55);
 
-            // Background
             Image bgImage = subtitlePanel.AddComponent<Image>();
-            bgImage.color = new Color(0, 0, 0, 0.7f);
+            bgImage.color = new Color(0, 0, 0, 0.8f);
 
-            // Add CanvasGroup for fading
             subtitlePanel.AddComponent<CanvasGroup>();
 
-            // Horizontal Layout
-            HorizontalLayoutGroup layout = subtitlePanel.AddComponent<HorizontalLayoutGroup>();
-            layout.padding = new RectOffset(20, 20, 10, 10);
-            layout.spacing = 15;
-            layout.childAlignment = TextAnchor.MiddleLeft;
-            layout.childControlWidth = false;
-            layout.childControlHeight = true;
-            layout.childForceExpandWidth = false;
-            layout.childForceExpandHeight = true;
-
-            // Speaker Name Text
             GameObject speakerObj = new GameObject("SpeakerName");
             speakerObj.transform.SetParent(subtitlePanel.transform, false);
 
             RectTransform speakerRect = speakerObj.AddComponent<RectTransform>();
-            speakerRect.sizeDelta = new Vector2(200, 50);
+            speakerRect.anchorMin = new Vector2(0, 0);
+            speakerRect.anchorMax = new Vector2(0, 1);
+            speakerRect.pivot = new Vector2(0, 0.5f);
+            speakerRect.anchoredPosition = new Vector2(6, 0);
+            speakerRect.sizeDelta = new Vector2(65, 0);
 
             TextMeshProUGUI speakerText = speakerObj.AddComponent<TextMeshProUGUI>();
-            speakerText.text = "Speaker:";
-            speakerText.fontSize = 28;
+            speakerText.text = "";
+            speakerText.fontSize = 10;
             speakerText.fontStyle = FontStyles.Bold;
             speakerText.color = Color.yellow;
-            speakerText.alignment = TextAlignmentOptions.MidlineLeft;
+            speakerText.alignment = TextAlignmentOptions.Left;
+            speakerText.verticalAlignment = VerticalAlignmentOptions.Middle;
+            speakerText.enableWordWrapping = false;
 
-            LayoutElement speakerLayout = speakerObj.AddComponent<LayoutElement>();
-            speakerLayout.minWidth = 150;
-            speakerLayout.preferredWidth = 200;
-
-            // Subtitle Text
             GameObject subtitleObj = new GameObject("SubtitleText");
             subtitleObj.transform.SetParent(subtitlePanel.transform, false);
 
             RectTransform subtitleRect = subtitleObj.AddComponent<RectTransform>();
+            subtitleRect.anchorMin = new Vector2(0, 0);
+            subtitleRect.anchorMax = new Vector2(1, 1);
+            subtitleRect.offsetMin = new Vector2(70, 2);
+            subtitleRect.offsetMax = new Vector2(-3, -2);
+            subtitleRect.sizeDelta = Vector2.zero;
 
             TextMeshProUGUI subtitleText = subtitleObj.AddComponent<TextMeshProUGUI>();
-            subtitleText.text = "Subtitle text will appear here...";
-            subtitleText.fontSize = 24;
+            subtitleText.text = "";
+            subtitleText.fontSize = 10;
             subtitleText.color = Color.white;
-            subtitleText.alignment = TextAlignmentOptions.MidlineLeft;
+            subtitleText.alignment = TextAlignmentOptions.Left;
+            subtitleText.verticalAlignment = VerticalAlignmentOptions.Middle;
             subtitleText.enableWordWrapping = true;
-
-            LayoutElement subtitleLayout = subtitleObj.AddComponent<LayoutElement>();
-            subtitleLayout.flexibleWidth = 1;
+            subtitleText.overflowMode = TextOverflowModes.Ellipsis;
+            subtitleText.wordWrappingRatios = 0.4f;
 
             // Create or find SubtitleManager
             SubtitleManager manager = FindObjectOfType<SubtitleManager>();
@@ -99,11 +104,15 @@ namespace PhilosophySalon
             manager.subtitleText = subtitleText;
             manager.backgroundImage = bgImage;
 
+            // Mark scene dirty
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
+                UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene());
+
             // Select the panel
             Selection.activeGameObject = subtitlePanel;
 
             Debug.Log("[SubtitleUIGenerator] Subtitle UI created successfully!");
-            Debug.Log("Remember to assign SubtitleManager to DialogueManager!");
+            Debug.Log("SubtitleManager references have been auto-assigned.");
         }
     }
 }
