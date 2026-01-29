@@ -58,17 +58,26 @@ public static class SettingsData
     public const string KEY_SHOW_SUBTITLES = "ShowSubtitles";
     public const string KEY_DEBATE_SPEED = "DebateSpeed";
     public const string KEY_CONVIVIALITY = "Conviviality";
+    public const string KEY_TOPIC = "DebateTopic";
 
     // Default values
     public const float DEFAULT_VOLUME = 0.8f;
     public const bool DEFAULT_SUBTITLES = true;
     public const float DEFAULT_SPEED = 1f;
     public const float DEFAULT_CONVIVIALITY = 0.5f;
+    public const string DEFAULT_TOPIC = "What is the meaning of freedom?";
 
     // Get/Set Conviviality
     public static float Conviviality
     {
         get { return PlayerPrefs.GetFloat(KEY_CONVIVIALITY, DEFAULT_CONVIVIALITY); }
         set { PlayerPrefs.SetFloat(KEY_CONVIVIALITY, value); PlayerPrefs.Save(); }
+    }
+
+    // Get/Set Topic
+    public static string Topic
+    {
+        get { return PlayerPrefs.GetString(KEY_TOPIC, DEFAULT_TOPIC); }
+        set { PlayerPrefs.SetString(KEY_TOPIC, value); PlayerPrefs.Save(); }
     }
 }

@@ -23,6 +23,7 @@ public class MainMenuManager : MonoBehaviour
     private CanvasGroup fadeOverlay;
     private Slider convivialitySlider;
     private Text convivialityValueText;
+    private InputField topicInputField;
 
     void Start()
     {
@@ -85,9 +86,23 @@ public class MainMenuManager : MonoBehaviour
             24, SettingsData.SubtitleColor, TextAnchor.MiddleCenter, FontStyle.Italic);
         UIFactory.SetRect(subtitle.gameObject, 0.5f, 0.62f, 600, 40);
 
+        // Topic input section
+        GameObject topicSection = UIFactory.CreateElement("TopicSection", mainMenuPanel);
+        UIFactory.SetRect(topicSection, 0.5f, 0.52f, 600, 70);
+
+        Text topicLabel = UIFactory.CreateText(topicSection, "Label", "Debate Topic",
+            20, SettingsData.SubtitleColor, TextAnchor.MiddleCenter);
+        RectTransform topicLabelRect = topicLabel.GetComponent<RectTransform>();
+        topicLabelRect.anchorMin = new Vector2(0, 0.65f);
+        topicLabelRect.anchorMax = new Vector2(1, 1f);
+        topicLabelRect.offsetMin = Vector2.zero;
+        topicLabelRect.offsetMax = Vector2.zero;
+
+        topicInputField = CreateTopicInputField(topicSection);
+
         // Conviviality slider section
         GameObject sliderSection = UIFactory.CreateElement("ConvivialitySection", mainMenuPanel);
-        UIFactory.SetRect(sliderSection, 0.5f, 0.48f, 400, 80);
+        UIFactory.SetRect(sliderSection, 0.5f, 0.40f, 400, 80);
 
         Text sliderLabel = UIFactory.CreateText(sliderSection, "Label", "Conviviality",
             20, SettingsData.SubtitleColor, TextAnchor.MiddleCenter);
@@ -109,7 +124,7 @@ public class MainMenuManager : MonoBehaviour
 
         // Button container
         GameObject buttonContainer = UIFactory.CreateElement("ButtonContainer", mainMenuPanel);
-        UIFactory.SetRect(buttonContainer, 0.5f, 0.28f, 300, 180);
+        UIFactory.SetRect(buttonContainer, 0.5f, 0.22f, 300, 180);
 
         VerticalLayoutGroup layout = buttonContainer.AddComponent<VerticalLayoutGroup>();
         layout.spacing = 15;
@@ -203,6 +218,71 @@ public class MainMenuManager : MonoBehaviour
         slider.onValueChanged.AddListener(OnConvivialityChanged);
 
         return slider;
+    }
+
+    private InputField CreateTopicInputField(GameObject parent)
+    {
+        GameObject inputObj = UIFactory.CreateElement("TopicInput", parent);
+        RectTransform inputRect = inputObj.GetComponent<RectTransform>();
+        inputRect.anchorMin = new Vector2(0.05f, 0.1f);
+        inputRect.anchorMax = new Vector2(0.95f, 0.6f);
+        inputRect.offsetMin = Vector2.zero;
+        inputRect.offsetMax = Vector2.zero;
+
+        Image bgImage = inputObj.AddComponent<Image>();
+        bgImage.color = new Color(0.15f, 0.15f, 0.2f, 1f);
+
+        GameObject textArea = UIFactory.CreateElement("TextArea", inputObj);
+        RectTransform textAreaRect = textArea.GetComponent<RectTransform>();
+        textAreaRect.anchorMin = Vector2.zero;
+        textAreaRect.anchorMax = Vector2.one;
+        textAreaRect.offsetMin = new Vector2(10, 5);
+        textAreaRect.offsetMax = new Vector2(-10, -5);
+
+        GameObject textObj = UIFactory.CreateElement("Text", textArea);
+        RectTransform textObjRect = textObj.GetComponent<RectTransform>();
+        textObjRect.anchorMin = Vector2.zero;
+        textObjRect.anchorMax = Vector2.one;
+        textObjRect.offsetMin = Vector2.zero;
+        textObjRect.offsetMax = Vector2.zero;
+
+        Text inputText = textObj.AddComponent<Text>();
+        inputText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        inputText.fontSize = 18;
+        inputText.color = Color.white;
+        inputText.alignment = TextAnchor.MiddleLeft;
+        inputText.supportRichText = false;
+
+        GameObject placeholderObj = UIFactory.CreateElement("Placeholder", textArea);
+        RectTransform placeholderRect = placeholderObj.GetComponent<RectTransform>();
+        placeholderRect.anchorMin = Vector2.zero;
+        placeholderRect.anchorMax = Vector2.one;
+        placeholderRect.offsetMin = Vector2.zero;
+        placeholderRect.offsetMax = Vector2.zero;
+
+        Text placeholderText = placeholderObj.AddComponent<Text>();
+        placeholderText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        placeholderText.fontSize = 18;
+        placeholderText.fontStyle = FontStyle.Italic;
+        placeholderText.color = new Color(0.5f, 0.5f, 0.5f, 0.8f);
+        placeholderText.alignment = TextAnchor.MiddleLeft;
+        placeholderText.text = "Enter debate topic...";
+
+        InputField input = inputObj.AddComponent<InputField>();
+        input.textComponent = inputText;
+        input.placeholder = placeholderText;
+        input.text = SettingsData.Topic;
+        input.onEndEdit.AddListener(OnTopicChanged);
+
+        return input;
+    }
+
+    private void OnTopicChanged(string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            SettingsData.Topic = value;
+        }
     }
 
     private string GetConvivialityLabel(float value)

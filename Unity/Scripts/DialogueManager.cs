@@ -24,6 +24,8 @@ namespace PhilosophySalon
         private Dictionary<string, AgentController> agentMap = new Dictionary<string, AgentController>();
         private AgentController currentSpeaker;
         private bool isPlaying = false;
+        private Coroutine currentPlayCoroutine;
+        private bool isPaused = false;
 
         void Start()
         {
@@ -51,7 +53,31 @@ namespace PhilosophySalon
                 webSocketClient.OnAgentResponse.AddListener(OnAgentResponse);
                 webSocketClient.OnMotivationUpdate.AddListener(OnMotivationUpdate);
                 webSocketClient.OnDialogueEnd.AddListener(OnDialogueEnd);
+                webSocketClient.OnPaused.AddListener(OnPaused);
             }
+        }
+
+        void Update()
+        {
+            // ESC key to toggle pause
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                if (isPaused)
+                {
+                    OnResumeClicked();
+                }
+                else
+                {
+                    OnPauseClicked();
+                }
+            }
+        }
+
+        void OnPaused()
+        {
+            Debug.Log("[DialogueManager] Dialogue paused - showing options");
+            isPaused = true;
+            uiManager?.ShowPausePanel();
         }
 
         void OnConnected()
@@ -59,8 +85,9 @@ namespace PhilosophySalon
             Debug.Log("[DialogueManager] Connected to backend");
             uiManager?.SetConnectionStatus(true);
 
-            // Send conviviality setting to backend
-            webSocketClient?.SendSetConviviality(conviviality);
+            // Send start_dialogue with topic and conviviality to backend
+            string topic = PlayerPrefs.GetString("DebateTopic", "What is the meaning of freedom?");
+            webSocketClient?.SendStartDialogue(topic, conviviality);
         }
 
         void OnDisconnected()
@@ -89,6 +116,25 @@ namespace PhilosophySalon
         {
             Debug.Log($"[DialogueManager] {agentName} is thinking...");
 
+            // Stop previous speaker and make them idle
+            if (currentPlayCoroutine != null)
+            {
+                StopCoroutine(currentPlayCoroutine);
+                currentPlayCoroutine = null;
+            }
+
+            if (currentSpeaker != null)
+            {
+                currentSpeaker.SetIdle();
+                Debug.Log($"[DialogueManager] {currentSpeaker.agentName} returned to idle");
+            }
+
+            // Stop current audio
+            if (audioSource != null && audioSource.isPlaying)
+            {
+                audioSource.Stop();
+            }
+
             // Highlight the thinking agent
             if (agentMap.TryGetValue(agentName, out AgentController agent))
             {
@@ -111,12 +157,33 @@ namespace PhilosophySalon
                 return;
             }
 
+            // Stop previous speaker if any
+            if (currentPlayCoroutine != null)
+            {
+                StopCoroutine(currentPlayCoroutine);
+                currentPlayCoroutine = null;
+            }
+
+            // Make previous speaker return to idle
+            if (currentSpeaker != null && currentSpeaker != agent)
+            {
+                currentSpeaker.SetIdle();
+                Debug.Log($"[DialogueManager] {currentSpeaker.agentName} returned to idle");
+            }
+
+            // Stop current audio
+            if (audioSource != null && audioSource.isPlaying)
+            {
+                audioSource.Stop();
+            }
+
             // Update UI
             uiManager?.AddDialogueLine(response.agent, response.text, response.stance);
             uiManager?.HideThinking();
 
             // Start speaking animation and lip sync
-            StartCoroutine(PlayAgentResponse(agent, response));
+            currentSpeaker = agent;
+            currentPlayCoroutine = StartCoroutine(PlayAgentResponse(agent, response));
         }
 
         IEnumerator PlayAgentResponse(AgentController agent, AgentResponseData response)
@@ -263,6 +330,61 @@ namespace PhilosophySalon
         }
 
         // Public methods for UI buttons
+        public void OnPauseClicked()
+        {
+            if (isPaused) return;
+
+            Debug.Log("[DialogueManager] Pause clicked");
+            isPaused = true;
+
+            // Immediately pause audio
+            if (audioSource != null && audioSource.isPlaying)
+            {
+                audioSource.Pause();
+            }
+
+            // Show pause panel immediately
+            uiManager?.ShowPausePanel();
+
+            // Notify backend
+            webSocketClient?.SendPause();
+        }
+
+        public void OnResumeClicked()
+        {
+            if (!isPaused) return;
+
+            Debug.Log("[DialogueManager] Resume clicked");
+            isPaused = false;
+
+            // Resume audio
+            if (audioSource != null)
+            {
+                audioSource.UnPause();
+            }
+
+            // Hide pause panel
+            uiManager?.HidePausePanel();
+
+            // Notify backend
+            webSocketClient?.SendResume();
+        }
+
+        public void OnExitClicked()
+        {
+            Debug.Log("[DialogueManager] Exit clicked");
+            isPaused = false;
+
+            // Stop everything
+            StopAllAgentAnimations();
+
+            // Notify backend
+            webSocketClient?.SendExit();
+
+            // Load main menu scene
+            UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenu");
+        }
+
         public void OnInterruptClicked()
         {
             webSocketClient?.SendInterrupt();
@@ -279,9 +401,9 @@ namespace PhilosophySalon
             webSocketClient?.SendSetConviviality(value);
         }
 
-        public void OnAskQuestion(string agentName, string question)
+        public void OnAskQuestion(string question)
         {
-            webSocketClient?.SendAskQuestion(agentName, question);
+            webSocketClient?.SendAskQuestion(question);
         }
 
         public bool IsPlaying => isPlaying;

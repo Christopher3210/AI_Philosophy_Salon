@@ -41,9 +41,15 @@ namespace PhilosophySalon
         public Button stopButton;
 
         [Header("Question Panel")]
-        public TMP_Dropdown agentDropdown;
         public TMP_InputField questionInput;
         public Button askButton;
+
+        [Header("Pause Panel")]
+        public GameObject pausePanel;
+        public Button pauseButton;
+        public Button resumeButton;
+        public Button exitButton;
+        public Button askInPauseButton;
 
         [Header("Agent Colors")]
         public Color aristotleColor = new Color(0.2f, 0.4f, 0.8f);
@@ -93,12 +99,34 @@ namespace PhilosophySalon
                 askButton.onClick.AddListener(OnAskClicked);
             }
 
-            // Setup agent dropdown
-            if (agentDropdown != null)
+            if (pauseButton != null)
             {
-                agentDropdown.ClearOptions();
-                agentDropdown.AddOptions(new List<string> { "Aristotle", "Sartre", "Wittgenstein", "Russell" });
+                pauseButton.onClick.AddListener(OnPauseClicked);
             }
+
+            if (resumeButton != null)
+            {
+                resumeButton.onClick.AddListener(OnResumeClicked);
+            }
+
+            if (exitButton != null)
+            {
+                exitButton.onClick.AddListener(OnExitClicked);
+            }
+
+            if (askInPauseButton != null)
+            {
+                askInPauseButton.onClick.AddListener(OnAskInPauseClicked);
+            }
+
+            // Hide pause panel initially, but keep pause button visible
+            HidePausePanel();
+            if (pauseButton != null)
+            {
+                pauseButton.gameObject.SetActive(true);
+                pauseButton.interactable = true;
+            }
+
 
             // Initial state
             SetConnectionStatus(false);
@@ -117,11 +145,13 @@ namespace PhilosophySalon
                 connectionIndicator.color = connected ? connectedColor : disconnectedColor;
             }
 
-            // Enable/disable controls
+            // Enable/disable controls based on connection
             if (interruptButton != null) interruptButton.interactable = connected;
             if (stopButton != null) stopButton.interactable = connected;
             if (askButton != null) askButton.interactable = connected;
             if (convivialitySlider != null) convivialitySlider.interactable = connected;
+            // Pause button should always be enabled
+            if (pauseButton != null) pauseButton.interactable = true;
         }
 
         public void SetTopic(string topic)
@@ -294,17 +324,55 @@ namespace PhilosophySalon
             dialogueManager?.OnStopClicked();
         }
 
+        void OnPauseClicked()
+        {
+            dialogueManager?.OnPauseClicked();
+        }
+
+        void OnResumeClicked()
+        {
+            dialogueManager?.OnResumeClicked();
+        }
+
+        void OnExitClicked()
+        {
+            dialogueManager?.OnExitClicked();
+        }
+
         void OnAskClicked()
         {
-            if (agentDropdown == null || questionInput == null) return;
+            if (questionInput == null) return;
 
-            string agentName = agentDropdown.options[agentDropdown.value].text;
             string question = questionInput.text;
 
             if (!string.IsNullOrEmpty(question))
             {
-                dialogueManager?.OnAskQuestion(agentName, question);
+                dialogueManager?.OnAskQuestion(question);
                 questionInput.text = ""; // Clear input
+            }
+        }
+
+        void OnAskInPauseClicked()
+        {
+            // Ask question from pause panel, then hide pause panel
+            OnAskClicked();
+            HidePausePanel();
+            dialogueManager?.OnResumeClicked();
+        }
+
+        public void ShowPausePanel()
+        {
+            if (pausePanel != null)
+            {
+                pausePanel.SetActive(true);
+            }
+        }
+
+        public void HidePausePanel()
+        {
+            if (pausePanel != null)
+            {
+                pausePanel.SetActive(false);
             }
         }
     }

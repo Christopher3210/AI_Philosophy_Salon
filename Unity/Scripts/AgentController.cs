@@ -24,15 +24,15 @@ namespace PhilosophySalon
         public Color thinkingColor = Color.cyan;
 
         [Header("Animation - Idle States")]
-        [Tooltip("Multiple idle animation trigger names (randomly selected)")]
-        public string[] idleAnimations = { "Idle", "BreathingIdle", "StandingIdle" };
+        [Tooltip("Multiple idle animation state names (randomly selected)")]
+        public string[] idleAnimations = { "Idle", "Breathing Idle", "Standing Idle" };
 
         [Header("Animation - Thinking States")]
-        [Tooltip("Multiple thinking animation trigger names (randomly selected)")]
+        [Tooltip("Multiple thinking animation state names (randomly selected)")]
         public string[] thinkingAnimations = { "Thinking" };
 
         [Header("Animation - Speaking States")]
-        [Tooltip("Multiple speaking animation trigger names (randomly selected)")]
+        [Tooltip("Multiple speaking animation state names (randomly selected)")]
         public string[] speakingAnimations = { "Talking", "Talking1", "Talking2" };
 
         [Header("Animation - Gesture Animations")]
@@ -96,7 +96,8 @@ namespace PhilosophySalon
                 string anim = GetRandomAnimation(idleAnimations);
                 if (!string.IsNullOrEmpty(anim))
                 {
-                    animator.SetTrigger(anim);
+                    // Use Play for immediate switch
+                    animator.Play(anim, 0, 0f);
                     Debug.Log($"[{agentName}] Idle animation: {anim}");
                 }
             }
@@ -115,7 +116,7 @@ namespace PhilosophySalon
                 string anim = GetRandomAnimation(thinkingAnimations);
                 if (!string.IsNullOrEmpty(anim))
                 {
-                    animator.SetTrigger(anim);
+                    animator.CrossFade(anim, 0.1f);
                     Debug.Log($"[{agentName}] Thinking animation: {anim}");
                 }
             }
@@ -131,7 +132,7 @@ namespace PhilosophySalon
                 string anim = GetRandomAnimation(speakingAnimations);
                 if (!string.IsNullOrEmpty(anim))
                 {
-                    animator.SetTrigger(anim);
+                    animator.CrossFade(anim, 0.1f);
                     Debug.Log($"[{agentName}] Speaking animation: {anim}");
                 }
 

@@ -174,6 +174,10 @@ class WebSocketServer:
         except asyncio.TimeoutError:
             return None
 
+    async def send_event(self, event_type: str, data: Dict[str, Any] = None):
+        """Send a generic event to all clients."""
+        await self.broadcast(event_type, data or {})
+
     @property
     def has_clients(self) -> bool:
         """Check if any clients are connected."""

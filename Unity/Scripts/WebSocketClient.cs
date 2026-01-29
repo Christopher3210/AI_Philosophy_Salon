@@ -88,6 +88,7 @@ namespace PhilosophySalon
         public UnityEvent<AgentResponseData> OnAgentResponse;
         public UnityEvent<Dictionary<string, float>> OnMotivationUpdate;
         public UnityEvent OnDialogueEnd;
+        public UnityEvent OnPaused; // dialogue paused, show options
 
         private WebSocket websocket;
         private bool isConnected = false;
@@ -195,6 +196,10 @@ namespace PhilosophySalon
                         OnDialogueEnd?.Invoke();
                         break;
 
+                    case "paused":
+                        OnPaused?.Invoke();
+                        break;
+
                     default:
                         Debug.Log($"[WebSocket] Unknown event: {wrapper.@event}");
                         break;
@@ -272,12 +277,47 @@ namespace PhilosophySalon
             Debug.Log($"[WebSocket] Sent conviviality: {value}");
         }
 
-        public async void SendAskQuestion(string agentName, string question)
+        public async void SendAskQuestion(string question)
         {
             if (!isConnected) return;
-            string json = $"{{\"event\": \"ask_question\", \"data\": {{\"agent\": \"{agentName}\", \"question\": \"{question}\"}}}}";
+            string escapedQuestion = question.Replace("\"", "\\\"");
+            string json = $"{{\"event\": \"ask_question\", \"data\": {{\"question\": \"{escapedQuestion}\"}}}}";
             await websocket.SendText(json);
-            Debug.Log($"[WebSocket] Sent question to {agentName}: {question}");
+            Debug.Log($"[WebSocket] Sent question: {question}");
+        }
+
+        public async void SendStartDialogue(string topic, float conviviality)
+        {
+            if (!isConnected) return;
+            // Escape quotes in topic
+            string escapedTopic = topic.Replace("\"", "\\\"");
+            string json = $"{{\"event\": \"start_dialogue\", \"data\": {{\"topic\": \"{escapedTopic}\", \"conviviality\": {conviviality}}}}}";
+            await websocket.SendText(json);
+            Debug.Log($"[WebSocket] Sent start_dialogue - Topic: {topic}, Conviviality: {conviviality}");
+        }
+
+        public async void SendPause()
+        {
+            if (!isConnected) return;
+            string json = "{\"event\": \"pause\"}";
+            await websocket.SendText(json);
+            Debug.Log("[WebSocket] Sent pause");
+        }
+
+        public async void SendResume()
+        {
+            if (!isConnected) return;
+            string json = "{\"event\": \"resume\"}";
+            await websocket.SendText(json);
+            Debug.Log("[WebSocket] Sent resume");
+        }
+
+        public async void SendExit()
+        {
+            if (!isConnected) return;
+            string json = "{\"event\": \"exit\"}";
+            await websocket.SendText(json);
+            Debug.Log("[WebSocket] Sent exit");
         }
 
         async void OnApplicationQuit()

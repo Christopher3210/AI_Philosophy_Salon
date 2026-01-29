@@ -37,6 +37,14 @@ class UnityDialogueController:
         self.should_stop = False
         self.speech_count = 0
 
+        # Initial settings from Unity
+        self.pending_topic = None
+        self.settings_received = False
+
+        # Pause state
+        self.is_paused = False
+        self.resume_requested = False
+
         # Import sub-modules
         from controller.speaker_selector import SpeakerSelector
         from controller.motivation_scorer import MotivationScorer
@@ -61,18 +69,34 @@ class UnityDialogueController:
         """Handle messages received from Unity."""
         event = message.get("event", "")
 
-        if event == "interrupt":
-            self.is_interrupted = True
-            print("[Unity] Interrupt received")
+        if event == "interrupt" or event == "pause":
+            self.is_paused = True
+            self.resume_requested = False
+            print("[Unity] Pause received - will pause after current speaker finishes")
+            # Notify Unity that we're entering pause state
+            await self.ws_server.send_event("paused", {})
 
-        elif event == "stop":
+        elif event == "resume":
+            self.is_paused = False
+            self.resume_requested = True
+            print("[Unity] Resume received")
+
+        elif event == "stop" or event == "exit":
             self.should_stop = True
-            print("[Unity] Stop received")
+            print("[Unity] Stop/Exit received")
 
         elif event == "set_conviviality":
             new_value = message.get("data", {}).get("value", 0.5)
             self.conviviality = max(0.0, min(1.0, new_value))
             print(f"[Unity] Conviviality set to: {self.conviviality}")
+
+        elif event == "start_dialogue":
+            data = message.get("data", {})
+            self.pending_topic = data.get("topic", "What is the meaning of freedom?")
+            new_conv = data.get("conviviality", 0.5)
+            self.conviviality = max(0.0, min(1.0, new_conv))
+            self.settings_received = True
+            print(f"[Unity] Start dialogue received - Topic: {self.pending_topic}, Conviviality: {self.conviviality}")
 
         elif event == "ask_question":
             # Handle directed question
@@ -153,13 +177,9 @@ class UnityDialogueController:
             print(f"[TTS] Error: {e}")
             return "", []
 
-    async def run_dialogue(self, topic: str):
+    async def run_dialogue(self, topic: str = None):
         """Run dialogue with Unity frontend integration."""
-        # Initialize logger
-        participant_names = [a.name for a in self.agents]
-        self.logger = self.DebateLogger(topic, participant_names, conviviality=self.conviviality)
-
-        # Set WebSocket message handler
+        # Set WebSocket message handler first to receive start_dialogue event
         self.ws_server.set_message_callback(self.handle_websocket_message)
 
         # Wait for Unity to connect
@@ -175,6 +195,20 @@ class UnityDialogueController:
             print(".", end="", flush=True)
 
         print("\n[Unity] Client connected!")
+        print("[Unity] Waiting for start_dialogue message from Unity...")
+
+        # Wait for Unity to send start_dialogue with topic and conviviality
+        while not self.settings_received:
+            await asyncio.sleep(0.1)
+
+        # Use topic from Unity or fallback to parameter
+        actual_topic = self.pending_topic or topic or "What is the meaning of freedom?"
+
+        # Initialize logger with settings from Unity
+        participant_names = [a.name for a in self.agents]
+        self.logger = self.DebateLogger(actual_topic, participant_names, conviviality=self.conviviality)
+        print(f"[Logger] Session initialized with conviviality: {self.conviviality}")
+        topic = actual_topic
 
         # Notify Unity that dialogue is starting
         await self.ws_server.send_dialogue_start(topic, participant_names)
@@ -188,11 +222,12 @@ class UnityDialogueController:
         # Main dialogue loop
         try:
             while not self.should_stop:
-                # Check for interrupt
-                if self.is_interrupted:
-                    self.is_interrupted = False
-                    await asyncio.sleep(0.5)
-                    continue
+                # Check for pause state - wait until resumed
+                while self.is_paused and not self.should_stop:
+                    await asyncio.sleep(0.1)
+
+                if self.should_stop:
+                    break
 
                 # Select next speaker
                 speaker = self.speaker_selector.select_next_speaker()
@@ -301,7 +336,7 @@ class UnityDialogueController:
                 # Estimate duration: ~150 words per minute, average 5 chars per word
                 words = len(reply.split())
                 estimated_duration = max(2.0, words / 2.5)  # At least 2 seconds
-                thinking_pause = 5.0  # Extra pause for natural pacing
+                thinking_pause = 3.0  # Extra pause for natural pacing
                 total_wait = estimated_duration + thinking_pause
                 print(f"[Dialogue] Waiting {total_wait:.1f}s (audio: {estimated_duration:.1f}s + thinking: {thinking_pause:.1f}s)")
                 await asyncio.sleep(total_wait)
@@ -359,9 +394,9 @@ async def main():
         conviviality=0.5  # Default, can be changed by Unity
     )
 
-    # 4. Run dialogue
+    # 4. Run dialogue (topic will be received from Unity)
     try:
-        await controller.run_dialogue(topic="What is the meaning of freedom?")
+        await controller.run_dialogue()
     finally:
         await ws_server.stop()
 
