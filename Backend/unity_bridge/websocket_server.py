@@ -1,9 +1,9 @@
-# websocket_server.py
+# unity_bridge/websocket_server.py
 # WebSocket server for Unity frontend communication
 
 import asyncio
 import json
-from typing import Set, Dict, Any, Optional
+from typing import Set, Dict, Any, Callable, Awaitable
 import websockets
 from websockets.server import WebSocketServerProtocol
 
@@ -18,12 +18,15 @@ class WebSocketServer:
     - agent_response: Agent's response with text, audio path, and viseme data
     - motivation_update: Updated motivation scores
     - dialogue_end: Dialogue session ended
+    - paused: Dialogue paused, show options panel
 
     Receives events:
-    - interrupt: User wants to interrupt
+    - pause/interrupt: User wants to pause
+    - resume: Resume dialogue
+    - stop/exit: Stop the dialogue
     - set_conviviality: Change conviviality level
-    - ask_question: Ask a specific agent a question
-    - stop: Stop the dialogue
+    - start_dialogue: Start with topic and settings
+    - ask_question: Ask a question
     """
 
     def __init__(self, host: str = "localhost", port: int = 8765):
@@ -31,11 +34,8 @@ class WebSocketServer:
         self.port = port
         self.clients: Set[WebSocketServerProtocol] = set()
         self.server = None
-        self.message_queue: asyncio.Queue = asyncio.Queue()
         self.running = False
-
-        # Callback for received messages
-        self.on_message_callback = None
+        self.on_message_callback: Callable[[Dict], Awaitable[None]] = None
 
     async def start(self):
         """Start the WebSocket server."""
@@ -65,12 +65,8 @@ class WebSocketServer:
             async for message in websocket:
                 try:
                     data = json.loads(message)
-                    print(f"[WebSocket] Received: {data}")
+                    print(f"[WebSocket] Received: {data.get('event', 'unknown')}")
 
-                    # Put message in queue for processing
-                    await self.message_queue.put(data)
-
-                    # Call callback if set
                     if self.on_message_callback:
                         await self.on_message_callback(data)
 
@@ -91,7 +87,6 @@ class WebSocketServer:
             "data": data
         })
 
-        # Send to all clients
         disconnected = set()
         for client in self.clients:
             try:
@@ -99,8 +94,22 @@ class WebSocketServer:
             except websockets.exceptions.ConnectionClosed:
                 disconnected.add(client)
 
-        # Remove disconnected clients
         self.clients -= disconnected
+
+    def set_message_callback(self, callback: Callable[[Dict], Awaitable[None]]):
+        """Set callback function for received messages."""
+        self.on_message_callback = callback
+
+    @property
+    def has_clients(self) -> bool:
+        """Check if any clients are connected."""
+        return len(self.clients) > 0
+
+    # ----- Event sending methods -----
+
+    async def send_event(self, event_type: str, data: Dict[str, Any] = None):
+        """Send a generic event to all clients."""
+        await self.broadcast(event_type, data or {})
 
     async def send_dialogue_start(self, topic: str, participants: list):
         """Notify clients that dialogue has started."""
@@ -109,10 +118,11 @@ class WebSocketServer:
             "participants": participants
         })
 
-    async def send_agent_speaking(self, agent_name: str):
+    async def send_agent_speaking(self, agent_name: str, last_speaker: str = None):
         """Notify clients that an agent is about to speak."""
         await self.broadcast("agent_speaking", {
-            "agent": agent_name
+            "agent": agent_name,
+            "last_speaker": last_speaker
         })
 
     async def send_agent_response(
@@ -124,24 +134,7 @@ class WebSocketServer:
         stance: str,
         turn: int
     ):
-        """
-        Send agent's response with all data needed for Unity playback.
-
-        Parameters
-        ----------
-        agent_name : str
-            Name of the speaking agent
-        text : str
-            The response text
-        audio_path : str
-            Path to the generated audio file
-        viseme_data : list
-            List of viseme events: [{"time": float, "viseme": str, "weight": float}, ...]
-        stance : str
-            The agent's stance (agreement, disagreement, neutral, etc.)
-        turn : int
-            Current turn number
-        """
+        """Send agent's response with all data needed for Unity playback."""
         await self.broadcast("agent_response", {
             "agent": agent_name,
             "text": text,
@@ -162,23 +155,3 @@ class WebSocketServer:
         await self.broadcast("dialogue_end", {
             "summary": summary
         })
-
-    def set_message_callback(self, callback):
-        """Set callback function for received messages."""
-        self.on_message_callback = callback
-
-    async def get_message(self, timeout: float = 0.1) -> Optional[Dict[str, Any]]:
-        """Get a message from the queue with timeout."""
-        try:
-            return await asyncio.wait_for(self.message_queue.get(), timeout=timeout)
-        except asyncio.TimeoutError:
-            return None
-
-    async def send_event(self, event_type: str, data: Dict[str, Any] = None):
-        """Send a generic event to all clients."""
-        await self.broadcast(event_type, data or {})
-
-    @property
-    def has_clients(self) -> bool:
-        """Check if any clients are connected."""
-        return len(self.clients) > 0

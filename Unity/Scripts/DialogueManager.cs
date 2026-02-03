@@ -26,6 +26,7 @@ namespace PhilosophySalon
         private bool isPlaying = false;
         private Coroutine currentPlayCoroutine;
         private bool isPaused = false;
+        private bool isAnsweringQuestion = false;
 
         void Start()
         {
@@ -75,9 +76,39 @@ namespace PhilosophySalon
 
         void OnPaused()
         {
-            Debug.Log("[DialogueManager] Dialogue paused - showing options");
+            Debug.Log("[DialogueManager] Dialogue paused - stopping speaker and showing options");
             isPaused = true;
+            isAnsweringQuestion = false;  // Question answering complete
+
+            // Stop current speaker immediately
+            if (currentPlayCoroutine != null)
+            {
+                StopCoroutine(currentPlayCoroutine);
+                currentPlayCoroutine = null;
+            }
+
+            // Stop audio
+            if (audioSource != null && audioSource.isPlaying)
+            {
+                audioSource.Stop();
+            }
+
+            // Return current speaker to idle
+            if (currentSpeaker != null)
+            {
+                currentSpeaker.SetIdle();
+                Debug.Log($"[DialogueManager] {currentSpeaker.agentName} stopped and returned to idle");
+            }
+
+            // Hide subtitle
+            subtitleManager?.HideImmediate();
+
+            // Hide thinking indicator
+            uiManager?.HideThinking();
+
+            // Show pause panel
             uiManager?.ShowPausePanel();
+            isPlaying = false;
         }
 
         void OnConnected()
@@ -114,6 +145,13 @@ namespace PhilosophySalon
 
         void OnAgentSpeaking(string agentName)
         {
+            // Ignore if paused (unless answering a question)
+            if (isPaused && !isAnsweringQuestion)
+            {
+                Debug.Log($"[DialogueManager] Ignoring {agentName} thinking - currently paused");
+                return;
+            }
+
             Debug.Log($"[DialogueManager] {agentName} is thinking...");
 
             // Stop previous speaker and make them idle
@@ -148,6 +186,13 @@ namespace PhilosophySalon
 
         void OnAgentResponse(AgentResponseData response)
         {
+            // Ignore if paused (unless answering a question)
+            if (isPaused && !isAnsweringQuestion)
+            {
+                Debug.Log($"[DialogueManager] Ignoring {response.agent} response - currently paused");
+                return;
+            }
+
             Debug.Log($"[DialogueManager] {response.agent}: {response.text}");
 
             // Get the agent controller
@@ -334,19 +379,10 @@ namespace PhilosophySalon
         {
             if (isPaused) return;
 
-            Debug.Log("[DialogueManager] Pause clicked");
-            isPaused = true;
+            Debug.Log("[DialogueManager] Pause clicked - waiting for current speaker to finish");
 
-            // Immediately pause audio
-            if (audioSource != null && audioSource.isPlaying)
-            {
-                audioSource.Pause();
-            }
-
-            // Show pause panel immediately
-            uiManager?.ShowPausePanel();
-
-            // Notify backend
+            // Only notify backend, don't show panel yet
+            // Panel will show when backend sends "paused" event (after current speaker finishes)
             webSocketClient?.SendPause();
         }
 
@@ -403,6 +439,7 @@ namespace PhilosophySalon
 
         public void OnAskQuestion(string question)
         {
+            isAnsweringQuestion = true;
             webSocketClient?.SendAskQuestion(question);
         }
 

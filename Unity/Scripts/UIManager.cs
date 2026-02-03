@@ -355,9 +355,9 @@ namespace PhilosophySalon
         void OnAskInPauseClicked()
         {
             // Ask question from pause panel, then hide pause panel
+            // Don't send resume - backend will handle it and show pause panel again after answering
             OnAskClicked();
             HidePausePanel();
-            dialogueManager?.OnResumeClicked();
         }
 
         public void ShowPausePanel()

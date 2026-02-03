@@ -1,8 +1,16 @@
 # controller/__init__.py
+# Core dialogue control modules
 
-from .dialogue_controller import DialogueController
+from .speaker_selector import SpeakerSelector
+from .stance_analyzer import StanceAnalyzer
+from .motivation_scorer import MotivationScorer
+from .target_detector import TargetDetector
+from .debate_logger import DebateLogger
 
-# For backwards compatibility
-TurnTakingController = DialogueController
-
-__all__ = ['DialogueController', 'TurnTakingController']
+__all__ = [
+    'SpeakerSelector',
+    'StanceAnalyzer',
+    'MotivationScorer',
+    'TargetDetector',
+    'DebateLogger',
+]

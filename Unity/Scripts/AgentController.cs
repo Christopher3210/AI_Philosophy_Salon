@@ -96,9 +96,10 @@ namespace PhilosophySalon
                 string anim = GetRandomAnimation(idleAnimations);
                 if (!string.IsNullOrEmpty(anim))
                 {
-                    // Use Play for immediate switch
+                    // Strongest method: Rebind and play
+                    animator.Rebind();
                     animator.Play(anim, 0, 0f);
-                    Debug.Log($"[{agentName}] Idle animation: {anim}");
+                    Debug.Log($"[{agentName}] Idle animation: {anim} (forced)");
                 }
             }
 

@@ -1,7 +1,8 @@
 # controller/target_detector.py
+# Detects which philosophers should respond to a question
 
 import re
-from typing import List
+from typing import List, Optional
 
 
 class TargetDetector:
@@ -12,6 +13,7 @@ class TargetDetector:
     - Direct addressing (e.g., "hello aristotle", "aristotle, what...")
     - Exclusion patterns (e.g., "except aristotle", "everyone but sartre")
     - Multiple targets (e.g., "aristotle and russell")
+    - LLM-based detection for ambiguous cases
     """
 
     def __init__(self, agents, model_manager=None):
@@ -30,14 +32,12 @@ class TargetDetector:
         """
         Detect which philosophers should respond to the question.
 
-        Uses keyword matching for obvious cases, LLM for ambiguous ones.
-
         Parameters
         ----------
         question : str
             The user's question
         recent_history : list, optional
-            Recent dialogue history to provide context (e.g., who just spoke)
+            Recent dialogue history for context
 
         Returns
         -------
@@ -53,84 +53,25 @@ class TargetDetector:
 
         # 1. Check for "everyone/all" patterns
         everyone_keywords = ['everyone', 'everybody', 'all of you', 'you all']
-        # Also check for standalone "all" (but be careful with "all of" vs just "all")
         has_everyone = any(keyword in question_lower for keyword in everyone_keywords)
-        if not has_everyone and ' all ' in question_lower or question_lower.startswith('all ') or question_lower.endswith(' all'):
-            has_everyone = True
+
+        if not has_everyone:
+            if ' all ' in question_lower or question_lower.startswith('all ') or question_lower.endswith(' all'):
+                has_everyone = True
 
         if has_everyone:
-            # Check for explicit exclusions: "except [name]" or "but [name]"
-            if 'except' in question_lower or ' but ' in question_lower:
-                # Extract excluded names directly from question
-                excluded_names = []
-                for agent in self.agents:
-                    if agent.name.lower() in question_lower:
-                        excluded_names.append(agent.name)
+            return self._handle_everyone_pattern(question_lower, last_speaker)
 
-                if excluded_names:
-                    # Do exclusion directly in code (reliable)
-                    targets = [a.name for a in self.agents if a.name not in excluded_names]
-                    print(f"[Target Detection] Keyword match: Everyone except {', '.join(excluded_names)} → {', '.join(targets)}")
-                    return targets
-                else:
-                    # "except/but" without specific name, treat as everyone
-                    print(f"[Target Detection] Keyword match: Everyone")
-                    return []
-            # Check for contextual exclusions: "else", "others", "rest"
-            elif last_speaker and any(kw in question_lower for kw in ['else', 'other', 'rest']):
-                targets = [a.name for a in self.agents if a.name != last_speaker]
-                print(f"[Target Detection] Keyword match: Everyone except {last_speaker} → {', '.join(targets)}")
-                return targets
-            else:
-                print(f"[Target Detection] Keyword match: Everyone")
-                return []  # Empty list = everyone
-
-        # 2. Check for standalone exclusion patterns (without "everyone/all")
-        # "the rest", "the others", "others" - exclude last speaker
-        standalone_exclusion_patterns = [
-            ('the rest', 'the rest'),
-            ('the others', 'the others'),
-            (r'\bothers\b', 'others'),  # word boundary to avoid "mothers", "brothers"
-        ]
-
+        # 2. Check for standalone exclusion patterns
         if last_speaker:
-            for pattern, display_name in standalone_exclusion_patterns:
-                if pattern.startswith(r'\b'):  # regex pattern
-                    import re
-                    if re.search(pattern, question_lower):
-                        targets = [a.name for a in self.agents if a.name != last_speaker]
-                        print(f"[Target Detection] Keyword match: '{display_name}' → Everyone except {last_speaker} → {', '.join(targets)}")
-                        return targets
-                else:  # simple string match
-                    if pattern in question_lower:
-                        targets = [a.name for a in self.agents if a.name != last_speaker]
-                        print(f"[Target Detection] Keyword match: '{display_name}' → Everyone except {last_speaker} → {', '.join(targets)}")
-                        return targets
+            targets = self._check_standalone_exclusion(question_lower, last_speaker)
+            if targets:
+                return targets
 
-        # 3. Check for "[Name]'s idea/opinion/view" pattern - exclude that person
-        opinion_keywords = ["'s idea", "'s opinion", "'s view", "'s perspective", "'s argument", "'s point"]
-        for keyword in opinion_keywords:
-            if keyword in question_lower:
-                # Find whose idea is being discussed
-                discussed_names = []
-                for agent in self.agents:
-                    possessive = agent.name.lower() + keyword
-                    if possessive in question_lower:
-                        discussed_names.append(agent.name)
-
-                if discussed_names:
-                    # Check if there's a trailing address (who we're asking)
-                    addressed_name = self._find_trailing_address(question_lower)
-
-                    if addressed_name:
-                        # Ask the addressed person, not the person being discussed
-                        print(f"[Target Detection] Asking {addressed_name} about {', '.join(discussed_names)}'s idea")
-                        return [addressed_name]
-                    else:
-                        # Ask everyone except the person being discussed
-                        targets = [a.name for a in self.agents if a.name not in discussed_names]
-                        print(f"[Target Detection] Asking about {', '.join(discussed_names)}'s idea → Everyone except them: {', '.join(targets)}")
-                        return targets
+        # 3. Check for "[Name]'s idea/opinion" pattern
+        targets = self._check_opinion_pattern(question_lower)
+        if targets:
+            return targets
 
         # 4. Check for trailing address (e.g., "..., aristotle?")
         addressed_name = self._find_trailing_address(question_lower)
@@ -138,36 +79,86 @@ class TargetDetector:
             print(f"[Target Detection] Trailing address detected: {addressed_name}")
             return [addressed_name]
 
-        # 5. Use LLM for ambiguous cases (specific names, pronouns, etc.)
+        # 5. Use LLM for ambiguous cases
         if self.model_manager:
             targets = self._llm_based_detection(question, last_speaker=last_speaker)
             if targets is not None:
                 return targets
 
-        # Fallback: all respond if detection fails
+        # Fallback: all respond
         return []
 
-    def _find_trailing_address(self, question_lower: str) -> str | None:
-        """
-        Find trailing address with fuzzy name matching.
+    def _handle_everyone_pattern(self, question_lower: str, last_speaker: str) -> List[str]:
+        """Handle 'everyone/all' patterns with possible exclusions."""
+        # Check for explicit exclusions
+        if 'except' in question_lower or ' but ' in question_lower:
+            excluded_names = []
+            for agent in self.agents:
+                if agent.name.lower() in question_lower:
+                    excluded_names.append(agent.name)
 
-        Handles cases like:
-        - "..., aristotle?"
-        - "... aristotl?"  (typo)
-        - "... russell"
+            if excluded_names:
+                targets = [a.name for a in self.agents if a.name not in excluded_names]
+                print(f"[Target Detection] Everyone except {', '.join(excluded_names)} → {', '.join(targets)}")
+                return targets
 
-        Returns
-        -------
-        str or None
-            Agent name if found, None otherwise
-        """
-        import re
+        # Check for contextual exclusions
+        if last_speaker and any(kw in question_lower for kw in ['else', 'other', 'rest']):
+            targets = [a.name for a in self.agents if a.name != last_speaker]
+            print(f"[Target Detection] Everyone except {last_speaker} → {', '.join(targets)}")
+            return targets
 
-        # Extract the last word/token from the question
-        # Look for pattern: comma/space + word + optional punctuation at end
+        print(f"[Target Detection] Everyone")
+        return []
+
+    def _check_standalone_exclusion(self, question_lower: str, last_speaker: str) -> Optional[List[str]]:
+        """Check for standalone exclusion patterns like 'the rest', 'the others'."""
+        patterns = ['the rest', 'the others']
+
+        for pattern in patterns:
+            if pattern in question_lower:
+                targets = [a.name for a in self.agents if a.name != last_speaker]
+                print(f"[Target Detection] '{pattern}' → Everyone except {last_speaker}")
+                return targets
+
+        # Check 'others' with word boundary
+        if re.search(r'\bothers\b', question_lower):
+            targets = [a.name for a in self.agents if a.name != last_speaker]
+            print(f"[Target Detection] 'others' → Everyone except {last_speaker}")
+            return targets
+
+        return None
+
+    def _check_opinion_pattern(self, question_lower: str) -> Optional[List[str]]:
+        """Check for '[Name]'s idea/opinion' pattern."""
+        opinion_keywords = ["'s idea", "'s opinion", "'s view", "'s perspective", "'s argument", "'s point"]
+
+        for keyword in opinion_keywords:
+            if keyword in question_lower:
+                discussed_names = []
+                for agent in self.agents:
+                    possessive = agent.name.lower() + keyword
+                    if possessive in question_lower:
+                        discussed_names.append(agent.name)
+
+                if discussed_names:
+                    # Check if there's a trailing address
+                    addressed_name = self._find_trailing_address(question_lower)
+                    if addressed_name:
+                        print(f"[Target Detection] Asking {addressed_name} about {', '.join(discussed_names)}'s idea")
+                        return [addressed_name]
+                    else:
+                        targets = [a.name for a in self.agents if a.name not in discussed_names]
+                        print(f"[Target Detection] About {', '.join(discussed_names)}'s idea → {', '.join(targets)}")
+                        return targets
+
+        return None
+
+    def _find_trailing_address(self, question_lower: str) -> Optional[str]:
+        """Find trailing address like '..., aristotle?'"""
         patterns = [
-            r',\s*(\w+)\s*[?!.]?\s*$',  # ", aristotle?" or ", aristotl?"
-            r'\s+(\w+)\s*[?!.]?\s*$',    # " aristotle?" or " aristotl?"
+            r',\s*(\w+)\s*[?!.]?\s*$',
+            r'\s+(\w+)\s*[?!.]?\s*$',
         ]
 
         for pattern in patterns:
@@ -175,125 +166,20 @@ class TargetDetector:
             if match:
                 potential_name = match.group(1)
 
-                # Try exact match first
+                # Exact match
                 for agent in self.agents:
                     if agent.name.lower() == potential_name:
                         return agent.name
 
-                # Try fuzzy match (starts with)
+                # Fuzzy match (starts with, min 4 chars)
                 for agent in self.agents:
                     if agent.name.lower().startswith(potential_name) and len(potential_name) >= 4:
                         return agent.name
 
-                # Try partial match (contained in name)
-                for agent in self.agents:
-                    if potential_name in agent.name.lower() and len(potential_name) >= 4:
-                        return agent.name
-
         return None
 
-    def _check_others_pattern(self, question_lower: str) -> bool:
-        """Check for 'others' pattern indicating all should respond."""
-        others_patterns = [
-            r'\bother[s\']?\b',      # others, other's, other
-            r'\beveryone\b',          # everyone
-            r'\ball\b',              # all
-            r'\brest\b',             # rest
-            r'\beverybody\b',        # everybody
-        ]
-        return any(re.search(pattern, question_lower) for pattern in others_patterns)
-
-    def _check_exclusion_patterns(self, question_lower: str) -> List[str]:
-        """Check for exclusion patterns like 'except aristotle'."""
-        exclusion_patterns = [
-            r'except\s+(\w+)',
-            r'not\s+(\w+)',
-            r'everyone\s+(?:but|except)\s+(\w+)',
-            r'all\s+(?:but|except)\s+(\w+)',
-        ]
-
-        for pattern in exclusion_patterns:
-            match = re.search(pattern, question_lower)
-            if match:
-                excluded_name = match.group(1)
-                # Return all agents except the excluded one
-                excluded_agents = []
-                for agent in self.agents:
-                    if agent.name.lower() != excluded_name:
-                        excluded_agents.append(agent.name)
-                # Only return if we found a valid exclusion
-                if len(excluded_agents) < len(self.agents):
-                    return excluded_agents
-        return []
-
-    def _check_greeting_patterns(self, question_lower: str) -> List[str]:
-        """Check for greeting + name patterns like 'hello aristotle'."""
-        pattern = r'^(?:hey|hi|hello|greetings)\s+(\w+)(?:\s+and\s+(\w+))?'
-        match = re.match(pattern, question_lower)
-
-        if match:
-            addressed = [name for name in match.groups() if name]
-            targets = []
-            for agent in self.agents:
-                if agent.name.lower() in addressed:
-                    targets.append(agent.name)
-            return targets
-        return []
-
-    def _check_name_first_pattern(self, question_lower: str) -> List[str]:
-        """Check for name at start with comma/colon like 'aristotle, what...'."""
-        pattern = r'^(\w+)(?:\s+and\s+(\w+))?(?:\s*,|\s*:)'
-        match = re.match(pattern, question_lower)
-
-        if match:
-            addressed = [name for name in match.groups() if name]
-            targets = []
-            for agent in self.agents:
-                if agent.name.lower() in addressed:
-                    targets.append(agent.name)
-            return targets
-        return []
-
-    def _check_trailing_address(self, question_lower: str) -> List[str]:
-        """Check for trailing address like 'what do you think, aristotle?'."""
-        pattern = r',\s*(\w+)\s*[?!.]?$'
-        match = re.search(pattern, question_lower)
-
-        if match:
-            addressed_name = match.group(1)
-            for agent in self.agents:
-                if agent.name.lower() == addressed_name:
-                    return [agent.name]
-        return []
-
-    def _check_single_mention(self, question_lower: str) -> List[str]:
-        """Check if only one philosopher is mentioned in a direct question."""
-        # Find all mentioned philosophers
-        mentioned = []
-        for agent in self.agents:
-            name_lower = agent.name.lower()
-            if re.search(r'\b' + re.escape(name_lower) + r'\b', question_lower):
-                mentioned.append(agent.name)
-
-        # If only one mentioned and starts with question word
-        question_words = ['what', 'how', 'why', 'when', 'where', 'who', 'can', 'could', 'would', 'should']
-        starts_with_question = any(question_lower.strip().startswith(qw) for qw in question_words)
-
-        if len(mentioned) == 1 and starts_with_question:
-            # Return the single mentioned philosopher as target
-            return mentioned
-
-        return []
-
-    def _llm_based_detection(self, question: str, last_speaker: str = None) -> List[str] | None:
-        """
-        Use LLM to intelligently detect who should respond.
-
-        Returns
-        -------
-        list of str or None
-            List of agent names, empty list for all, or None if detection failed
-        """
+    def _llm_based_detection(self, question: str, last_speaker: str = None) -> Optional[List[str]]:
+        """Use LLM to detect who should respond."""
         agent_names = [a.name for a in self.agents]
         names_str = ", ".join(agent_names)
 
@@ -301,7 +187,6 @@ class TargetDetector:
         if last_speaker:
             context_info = f"\n\nContext: {last_speaker} just spoke."
             context_info += f"\n- 'you' or 'your' refers to {last_speaker}"
-            context_info += f"\n- If the question says 'others', 'everyone else', or 'rest', exclude {last_speaker}"
 
         prompt = f"""Analyze who should respond to this question in a philosophical debate.
 
@@ -310,11 +195,9 @@ Question: "{question}"
 Available philosophers: {names_str}{context_info}
 
 Instructions:
-- If the question contains "everyone", "all", or "everybody", list ALL philosophers: {names_str}
-- If asking "you/your" (which refers to the last speaker), respond with only the last speaker's name
-- If asking "what do you think about [Person X]'s opinion/view/idea", respond with the last speaker's name (NOT Person X)
-- If specific philosophers are directly named (e.g., "Russell, what..."), list only those names
-- Consider pronouns and conversational context
+- If "everyone", "all", or "everybody" is mentioned, list ALL philosophers
+- If asking "you/your", respond with only the last speaker's name
+- If specific philosophers are named, list only those names
 
 Reply with ONLY the names (comma-separated):"""
 
@@ -330,13 +213,11 @@ Reply with ONLY the names (comma-separated):"""
             response = response.strip()
             print(f"[Target Detection] LLM response: '{response}'")
 
-            # Extract names mentioned in response
             targets = []
             for agent in self.agents:
                 if agent.name.lower() in response.lower():
                     targets.append(agent.name)
 
-            # If all philosophers mentioned, return empty list (everyone responds)
             if len(targets) == len(self.agents):
                 print(f"[Target Detection] Everyone responds")
                 return []
@@ -344,9 +225,8 @@ Reply with ONLY the names (comma-separated):"""
             if targets:
                 print(f"[Target Detection] Specific targets: {', '.join(targets)}")
                 return targets
-            else:
-                print(f"[Target Detection] Could not parse response, defaulting to everyone")
-                return []
+
+            return []
 
         except Exception as e:
             print(f"[TargetDetector] LLM detection failed: {e}")

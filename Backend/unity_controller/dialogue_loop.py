@@ -1,0 +1,159 @@
+# unity_controller/dialogue_loop.py
+# Main dialogue loop for Unity mode
+
+import asyncio
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .controller import UnityDialogueController
+
+
+async def run_dialogue_loop(controller: 'UnityDialogueController'):
+    """
+    Main dialogue loop - can be cancelled and restarted.
+
+    Parameters
+    ----------
+    controller : UnityDialogueController
+        The main controller instance
+    """
+    topic = controller.dialogue_topic
+
+    while not controller.should_stop:
+        # Check if paused at start of each iteration
+        if controller.is_paused or controller.is_answering_question:
+            await asyncio.sleep(0.1)
+            continue
+
+        # Select next speaker
+        speaker = controller.speaker_selector.select_next_speaker()
+
+        # Notify Unity that agent is thinking (with last speaker for Look At)
+        await controller.ws_server.send_agent_speaking(speaker.name, controller.last_speaker)
+        print(f"\n{speaker.name} is thinking...")
+
+        # Analyze stance
+        stance = controller.stance_analyzer.analyze_stance(
+            agent=speaker,
+            recent_history=controller.history[-3:],
+            conviviality=controller.conviviality
+        )
+
+        # Get tone instruction
+        tone_instruction = controller.stance_analyzer.get_tone_instruction(
+            stance=stance,
+            conviviality=controller.conviviality
+        )
+
+        # Build context and prompt with bridging phrase instruction
+        context = controller.build_context()
+        context_block = f"Recent dialogue:\n{context}\n\n" if context else ""
+
+        # Add bridging phrase instruction if there was a previous speaker
+        bridging_instruction = ""
+        if controller.last_speaker:
+            bridging_instruction = (
+                f"The last speaker was {controller.last_speaker}. "
+                f"Start with a brief acknowledgment of their point "
+                f"(e.g., 'I see your point...', 'Building on that...', "
+                f"'While I respect that view...'), then give your own view.\n"
+            )
+
+        user_prompt = (
+            f"Debate topic: {topic}\n\n"
+            f"{context_block}"
+            f"{bridging_instruction}"
+            f"Respond to this debate directly in first person.\n"
+            f"- Use 1-3 concise sentences.\n"
+            f"- {tone_instruction}\n"
+            f"- Avoid repeating what has already been said.\n"
+            f"- Do NOT say 'As {speaker.name}' or refer to yourself in third person.\n"
+        )
+
+        # Generate response
+        loop = asyncio.get_event_loop()
+        reply = await loop.run_in_executor(
+            None,
+            controller.model_manager.chat_once,
+            speaker.model_key,
+            speaker.system_prompt,
+            user_prompt,
+            150,
+            0.7,
+        )
+
+        reply = reply.replace("\n", " ").strip()
+
+        # Clean speaker name from reply
+        reply = _clean_reply(reply, speaker.name)
+
+        # Generate TTS audio and viseme data
+        audio_path, viseme_data = await controller.generate_speech(speaker.name, reply)
+
+        # Send response to Unity
+        await controller.ws_server.send_agent_response(
+            agent_name=speaker.name,
+            text=reply,
+            audio_path=audio_path,
+            viseme_data=viseme_data,
+            stance=stance,
+            turn=controller.speech_count
+        )
+
+        # Update local state
+        controller.last_speaker = speaker.name
+        speaker.add_memory(user_prompt, reply)
+        controller.history.append({"agent": speaker.name, "response": reply})
+        controller.speech_count += 1
+
+        # Log utterance
+        motivation_snapshot = {agent.name: agent.motivation_score for agent in controller.agents}
+        controller.logger.log_utterance(
+            speaker=speaker.name,
+            content=reply,
+            turn=controller.speech_count,
+            is_qa=False,
+            stance=stance,
+            motivation_scores=motivation_snapshot
+        )
+
+        # Update motivation scores
+        controller.motivation_scorer.analyze_utterance(
+            speaker_name=speaker.name,
+            text=reply,
+            all_agents=controller.agents,
+            recent_history=controller.history[-5:],
+            conviviality=controller.conviviality
+        )
+
+        # Send updated motivation scores to Unity
+        motivation_scores = {agent.name: agent.motivation_score for agent in controller.agents}
+        await controller.ws_server.send_motivation_update(motivation_scores)
+
+        print(f"[{speaker.name}] {reply}\n")
+
+        # Wait for audio to finish playing before next turn
+        words = len(reply.split())
+        estimated_duration = max(2.0, words / 2.5)
+        thinking_pause = 1.5  # Reduced from 3.0 based on teacher feedback
+        total_wait = estimated_duration + thinking_pause
+        print(f"[Dialogue] Waiting {total_wait:.1f}s (audio: {estimated_duration:.1f}s + pause: {thinking_pause:.1f}s)")
+
+        # Use short sleep intervals so we can be cancelled quickly
+        sleep_remaining = total_wait
+        while sleep_remaining > 0:
+            await asyncio.sleep(min(0.5, sleep_remaining))
+            sleep_remaining -= 0.5
+
+    print("[Dialogue] Main loop ended normally")
+
+
+def _clean_reply(reply: str, speaker_name: str) -> str:
+    """Remove speaker name prefix from reply if present."""
+    if reply.startswith(speaker_name + ":"):
+        reply = reply[len(speaker_name) + 1:].strip()
+    elif reply.startswith(speaker_name):
+        reply = reply[len(speaker_name):].strip()
+        if reply.startswith(":"):
+            reply = reply[1:].strip()
+    return reply
