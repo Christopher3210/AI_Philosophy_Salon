@@ -8,9 +8,10 @@ if TYPE_CHECKING:
     from .controller import UnityDialogueController
 
 
-async def handle_question(controller: 'UnityDialogueController', question: str):
+async def handle_question(controller: 'UnityDialogueController', question: str, target_agents: list = None):
     """
-    Handle a question from Unity using TargetDetector.
+    Handle a question from Unity.
+    Supports pause/interrupt between and during answers.
 
     Parameters
     ----------
@@ -18,6 +19,8 @@ async def handle_question(controller: 'UnityDialogueController', question: str):
         The main controller
     question : str
         The user's question
+    target_agents : list, optional
+        List of agent names selected by user to answer
     """
     # Cancel main loop immediately to prevent any new speakers
     if controller.main_loop_task and not controller.main_loop_task.done():
@@ -26,32 +29,47 @@ async def handle_question(controller: 'UnityDialogueController', question: str):
             await controller.main_loop_task
         except asyncio.CancelledError:
             pass
+        controller.main_loop_task = None
 
     controller.is_answering_question = True
-    controller.is_paused = True
+    controller.is_paused = False
+    controller.was_interrupted = False
 
-    # Detect who should respond
-    target_names = controller.target_detector.detect_targets(
-        question,
-        recent_history=controller.history
-    )
+    try:
+        # Use user-selected agents
+        if target_agents:
+            responding_agents = [a for a in controller.agents if a.name in target_agents]
+            print(f"[Unity] Selected responders: {', '.join(a.name for a in responding_agents)}")
+        else:
+            responding_agents = controller.agents
+            print(f"[Unity] No agents selected, all philosophers will respond")
 
-    if target_names:
-        responding_agents = [a for a in controller.agents if a.name in target_names]
-        print(f"[Unity] Target detected: {', '.join(target_names)}")
-    else:
-        responding_agents = controller.agents
-        print(f"[Unity] No specific target, all philosophers will respond")
+        # Each responding agent answers
+        for agent in responding_agents:
+            # Check if paused between answerers
+            # Pause: is_paused=True, was_interrupted=False → wait here
+            # After interrupt+continue: is_paused=False → skip this check
+            if controller.is_paused and not controller.was_interrupted:
+                print(f"[Unity] Q&A paused before {agent.name} - waiting for resume")
+                await controller.ws_server.send_event("paused", {})
+                while controller.is_paused and not controller.should_stop:
+                    await asyncio.sleep(0.1)
+                if controller.should_stop:
+                    break
 
-    # Each responding agent answers
-    for agent in responding_agents:
-        await _generate_answer(controller, agent, question)
+            await _generate_answer(controller, agent, question)
 
-    # After all responses, stay paused and notify Unity
-    print("[Unity] Question answered - showing pause panel again")
-    controller.is_answering_question = False
-    controller.is_paused = True
-    await controller.ws_server.send_event("paused", {})
+            if controller.should_stop:
+                break
+
+        # After all responses, stay paused and notify Unity
+        print("[Unity] Question answered - showing pause panel again")
+        controller.is_paused = True
+        controller.was_interrupted = False
+        await controller.ws_server.send_event("paused", {})
+
+    finally:
+        controller.is_answering_question = False
 
 
 async def _generate_answer(controller: 'UnityDialogueController', agent, question: str):
@@ -103,11 +121,26 @@ async def _generate_answer(controller: 'UnityDialogueController', agent, questio
         turn=controller.speech_count
     )
 
-    # Wait for audio to finish
+    # Wait for audio to finish - check for interrupt during wait
     words = len(reply.split())
     estimated_duration = max(2.0, words / 2.5)
     print(f"[Unity] Waiting {estimated_duration:.1f}s for {agent.name} to finish speaking...")
-    await asyncio.sleep(estimated_duration)
+
+    sleep_remaining = estimated_duration
+    while sleep_remaining > 0:
+        await asyncio.sleep(min(0.5, sleep_remaining))
+        sleep_remaining -= 0.5
+
+        # Interrupt: stop waiting immediately (frontend already paused audio)
+        if controller.was_interrupted:
+            print(f"[Unity] {agent.name} interrupted during audio wait")
+            # Wait for resume
+            while controller.is_paused and not controller.should_stop:
+                await asyncio.sleep(0.1)
+            if controller.should_stop:
+                return
+            print(f"[Unity] Resumed after interrupt - continuing Q&A")
+            break
 
     # Update history
     controller.last_speaker = agent.name

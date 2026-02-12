@@ -44,12 +44,19 @@ namespace PhilosophySalon
         public TMP_InputField questionInput;
         public Button askButton;
 
+        [Header("Philosopher Selection")]
+        public Toggle[] philosopherToggles;
+
         [Header("Pause Panel")]
         public GameObject pausePanel;
         public Button pauseButton;
         public Button resumeButton;
         public Button exitButton;
         public Button askInPauseButton;
+        public Button skipSpeakerButton;
+        public TMP_InputField changeTopicInput;
+        public Button changeTopicButton;
+        public TextMeshProUGUI pauseStatusText;
 
         [Header("Agent Colors")]
         public Color aristotleColor = new Color(0.2f, 0.4f, 0.8f);
@@ -117,6 +124,16 @@ namespace PhilosophySalon
             if (askInPauseButton != null)
             {
                 askInPauseButton.onClick.AddListener(OnAskInPauseClicked);
+            }
+
+            if (skipSpeakerButton != null)
+            {
+                skipSpeakerButton.onClick.AddListener(OnSkipSpeakerClicked);
+            }
+
+            if (changeTopicButton != null)
+            {
+                changeTopicButton.onClick.AddListener(OnChangeTopicClicked);
             }
 
             // Hide pause panel initially, but keep pause button visible
@@ -339,32 +356,108 @@ namespace PhilosophySalon
             dialogueManager?.OnExitClicked();
         }
 
+        public string[] GetSelectedPhilosophers()
+        {
+            List<string> selected = new List<string>();
+            if (philosopherToggles != null)
+            {
+                foreach (var toggle in philosopherToggles)
+                {
+                    if (toggle != null && toggle.isOn)
+                    {
+                        var label = toggle.GetComponentInChildren<TextMeshProUGUI>();
+                        if (label != null)
+                            selected.Add(label.text);
+                    }
+                }
+            }
+            return selected.ToArray();
+        }
+
         void OnAskClicked()
         {
             if (questionInput == null) return;
 
             string question = questionInput.text;
+            if (string.IsNullOrEmpty(question)) return;
 
-            if (!string.IsNullOrEmpty(question))
+            string[] targets = GetSelectedPhilosophers();
+            if (targets.Length == 0)
             {
-                dialogueManager?.OnAskQuestion(question);
-                questionInput.text = ""; // Clear input
+                Debug.LogWarning("[UIManager] No philosophers selected to answer!");
+                return;
             }
+
+            dialogueManager?.OnAskQuestion(question, targets);
+            questionInput.text = "";
         }
 
         void OnAskInPauseClicked()
         {
-            // Ask question from pause panel, then hide pause panel
-            // Don't send resume - backend will handle it and show pause panel again after answering
-            OnAskClicked();
+            if (questionInput == null) return;
+
+            string question = questionInput.text;
+            if (string.IsNullOrEmpty(question)) return;
+
+            string[] targets = GetSelectedPhilosophers();
+            if (targets.Length == 0)
+            {
+                Debug.LogWarning("[UIManager] No philosophers selected to answer!");
+                return;
+            }
+
+            dialogueManager?.OnAskQuestion(question, targets);
+            questionInput.text = "";
             HidePausePanel();
+        }
+
+        void OnSkipSpeakerClicked()
+        {
+            dialogueManager?.OnStopSpeakerClicked();
+        }
+
+        void OnChangeTopicClicked()
+        {
+            if (changeTopicInput == null) return;
+
+            string topic = changeTopicInput.text;
+            if (!string.IsNullOrEmpty(topic))
+            {
+                dialogueManager?.OnChangeTopic(topic);
+                changeTopicInput.text = "";
+            }
+        }
+
+        public void SetPauseRequested(bool requested)
+        {
+            if (pauseStatusText != null)
+            {
+                pauseStatusText.gameObject.SetActive(requested);
+                pauseStatusText.text = "Pausing...";
+            }
         }
 
         public void ShowPausePanel()
         {
+            Debug.Log($"[UIManager] ShowPausePanel called - pausePanel null? {pausePanel == null}");
+
+            // Hide "Pausing..." indicator
+            SetPauseRequested(false);
+
             if (pausePanel != null)
             {
                 pausePanel.SetActive(true);
+                Debug.Log("[UIManager] PausePanel activated");
+            }
+            else
+            {
+                Debug.LogWarning("[UIManager] pausePanel reference is NULL! Cannot show pause panel.");
+            }
+
+            // Hide pause button while panel is showing
+            if (pauseButton != null)
+            {
+                pauseButton.gameObject.SetActive(false);
             }
         }
 
@@ -373,6 +466,13 @@ namespace PhilosophySalon
             if (pausePanel != null)
             {
                 pausePanel.SetActive(false);
+            }
+
+            // Show pause button again
+            if (pauseButton != null)
+            {
+                pauseButton.gameObject.SetActive(true);
+                pauseButton.interactable = true;
             }
         }
     }

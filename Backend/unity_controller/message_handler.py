@@ -31,8 +31,11 @@ class MessageHandler:
         event = message.get("event", "")
         data = message.get("data", {})
 
-        if event == "interrupt" or event == "pause":
+        if event == "pause":
             await self._handle_pause()
+
+        elif event == "interrupt":
+            await self._handle_interrupt()
 
         elif event == "resume":
             await self._handle_resume()
@@ -56,19 +59,38 @@ class MessageHandler:
             await self._handle_change_topic(data)
 
     async def _handle_pause(self):
-        """Handle pause/interrupt event."""
+        """Handle pause event - let current speaker finish, then pause."""
         self.controller.is_paused = True
+        self.controller.was_interrupted = False
         self.controller.resume_requested = False
-        print("[Unity] Pause received - cancelling main loop task")
+        self.controller.resume_same_speaker = False
+        print("[Unity] Pause received - will pause after current speaker finishes")
+        # Do NOT cancel the task; the dialogue loop will check is_paused
+        # and send 'paused' event after the current turn completes.
 
-        if self.controller.main_loop_task and not self.controller.main_loop_task.done():
-            self.controller.main_loop_task.cancel()
+    async def _handle_interrupt(self):
+        """Handle interrupt event - immediately cancel current speech."""
+        self.controller.is_paused = True
+        self.controller.was_interrupted = True
+        self.controller.resume_requested = False
+        self.controller.resume_same_speaker = False
+        print("[Unity] Interrupt received - cancelling main loop task immediately")
+
+        # Only cancel the task if it's a normal dialogue loop (not Q&A)
+        # Q&A handler checks is_paused internally to support continue/skip
+        if not self.controller.is_answering_question:
+            if self.controller.main_loop_task and not self.controller.main_loop_task.done():
+                self.controller.main_loop_task.cancel()
+
+        # Send paused directly (don't rely on monitor loop)
+        await self.controller.ws_server.send_event("paused", {})
 
     async def _handle_resume(self):
         """Handle resume event."""
         self.controller.is_paused = False
+        self.controller.was_interrupted = False
         self.controller.resume_requested = True
-        print("[Unity] Resume received - restarting main loop")
+        print("[Unity] Resume received")
 
         if self.controller.main_loop_task is None or self.controller.main_loop_task.done():
             from .dialogue_loop import run_dialogue_loop
@@ -109,15 +131,17 @@ class MessageHandler:
     async def _handle_ask_question(self, data: dict):
         """Handle ask_question event."""
         question = data.get("question")
+        target_agents = data.get("target_agents", [])
         if question:
-            print(f"[Unity] Received question: {question}")
+            print(f"[Unity] Received question: {question}, targets: {target_agents}")
             from .question_handler import handle_question
-            await handle_question(self.controller, question)
+            await handle_question(self.controller, question, target_agents=target_agents)
 
     async def _handle_stop_speaker(self):
         """Handle stop_speaker event - skip to next speaker."""
         print("[Unity] Stop speaker - skipping to next")
         self.controller.is_paused = False
+        self.controller.resume_same_speaker = False
 
         if self.controller.main_loop_task and not self.controller.main_loop_task.done():
             self.controller.main_loop_task.cancel()
@@ -135,11 +159,25 @@ class MessageHandler:
             self.controller.current_topic = new_topic
             self.controller.dialogue_topic = new_topic
 
+            # Clear dialogue history so philosophers don't reference old topic
+            self.controller.history.clear()
+            self.controller.last_speaker = None
+            self.controller.speech_count = 0
+
             # Cancel current task and restart
             if self.controller.main_loop_task and not self.controller.main_loop_task.done():
                 self.controller.main_loop_task.cancel()
 
             self.controller.is_paused = False
+
+            # Notify Unity to clear UI and show new topic
+            participant_names = [a.name for a in self.controller.agents]
+            await self.controller.ws_server.send_dialogue_start(new_topic, participant_names)
+
+            # Send fresh motivation scores
+            motivation_scores = {a.name: a.motivation_score for a in self.controller.agents}
+            await self.controller.ws_server.send_motivation_update(motivation_scores)
+
             from .dialogue_loop import run_dialogue_loop
             self.controller.main_loop_task = asyncio.create_task(
                 run_dialogue_loop(self.controller)

@@ -197,6 +197,7 @@ namespace PhilosophySalon
                         break;
 
                     case "paused":
+                        Debug.Log($"[WebSocket] OnPaused event null? {OnPaused == null}, listener count: {OnPaused?.GetPersistentEventCount()}");
                         OnPaused?.Invoke();
                         break;
 
@@ -277,11 +278,12 @@ namespace PhilosophySalon
             Debug.Log($"[WebSocket] Sent conviviality: {value}");
         }
 
-        public async void SendAskQuestion(string question)
+        public async void SendAskQuestion(string question, string[] targetAgents)
         {
             if (!isConnected) return;
             string escapedQuestion = question.Replace("\"", "\\\"");
-            string json = $"{{\"event\": \"ask_question\", \"data\": {{\"question\": \"{escapedQuestion}\"}}}}";
+            string agentsJson = string.Join(",", System.Array.ConvertAll(targetAgents, a => $"\"{a}\""));
+            string json = $"{{\"event\": \"ask_question\", \"data\": {{\"question\": \"{escapedQuestion}\", \"target_agents\": [{agentsJson}]}}}}";
             await websocket.SendText(json);
             Debug.Log($"[WebSocket] Sent question: {question}");
         }
@@ -318,6 +320,23 @@ namespace PhilosophySalon
             string json = "{\"event\": \"exit\"}";
             await websocket.SendText(json);
             Debug.Log("[WebSocket] Sent exit");
+        }
+
+        public async void SendStopSpeaker()
+        {
+            if (!isConnected) return;
+            string json = "{\"event\": \"stop_speaker\"}";
+            await websocket.SendText(json);
+            Debug.Log("[WebSocket] Sent stop_speaker");
+        }
+
+        public async void SendChangeTopic(string topic)
+        {
+            if (!isConnected) return;
+            string escapedTopic = topic.Replace("\"", "\\\"");
+            string json = $"{{\"event\": \"change_topic\", \"data\": {{\"topic\": \"{escapedTopic}\"}}}}";
+            await websocket.SendText(json);
+            Debug.Log($"[WebSocket] Sent change_topic: {topic}");
         }
 
         async void OnApplicationQuit()

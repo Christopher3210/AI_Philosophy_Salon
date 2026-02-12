@@ -21,12 +21,32 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
 
     while not controller.should_stop:
         # Check if paused at start of each iteration
-        if controller.is_paused or controller.is_answering_question:
+        if controller.is_paused:
+            print("[Dialogue] Paused - sending notification to Unity")
+            await controller.ws_server.send_event("paused", {})
+            # Wait until resumed
+            while controller.is_paused and not controller.should_stop:
+                await asyncio.sleep(0.1)
+            if controller.should_stop:
+                break
+            print("[Dialogue] Resumed - continuing loop")
+            continue
+
+        if controller.is_answering_question:
             await asyncio.sleep(0.1)
             continue
 
-        # Select next speaker
-        speaker = controller.speaker_selector.select_next_speaker()
+        # Select speaker: resume same speaker after interrupt, otherwise next
+        if controller.resume_same_speaker and controller.last_speaker:
+            speaker = next(
+                (a for a in controller.agents if a.name == controller.last_speaker),
+                None
+            )
+            if speaker is None:
+                speaker = controller.speaker_selector.select_next_speaker()
+            controller.resume_same_speaker = False
+        else:
+            speaker = controller.speaker_selector.select_next_speaker()
 
         # Notify Unity that agent is thinking (with last speaker for Look At)
         await controller.ws_server.send_agent_speaking(speaker.name, controller.last_speaker)
@@ -135,11 +155,13 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
         # Wait for audio to finish playing before next turn
         words = len(reply.split())
         estimated_duration = max(2.0, words / 2.5)
-        thinking_pause = 1.5  # Reduced from 3.0 based on teacher feedback
+        thinking_pause = 0.5
         total_wait = estimated_duration + thinking_pause
         print(f"[Dialogue] Waiting {total_wait:.1f}s (audio: {estimated_duration:.1f}s + pause: {thinking_pause:.1f}s)")
 
         # Use short sleep intervals so we can be cancelled quickly
+        # Do NOT break on is_paused here — Pause should wait for audio to finish.
+        # Interrupt uses task.cancel() which raises CancelledError directly.
         sleep_remaining = total_wait
         while sleep_remaining > 0:
             await asyncio.sleep(min(0.5, sleep_remaining))

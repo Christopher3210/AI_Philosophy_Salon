@@ -27,6 +27,7 @@ namespace PhilosophySalon
         private Coroutine currentPlayCoroutine;
         private bool isPaused = false;
         private bool isAnsweringQuestion = false;
+        private bool hasInterruptedAudio = false;
 
         void Start()
         {
@@ -60,53 +61,38 @@ namespace PhilosophySalon
 
         void Update()
         {
-            // ESC key to toggle pause
-            if (Input.GetKeyDown(KeyCode.Escape))
-            {
-                if (isPaused)
-                {
-                    OnResumeClicked();
-                }
-                else
-                {
-                    OnPauseClicked();
-                }
-            }
         }
 
         void OnPaused()
         {
-            Debug.Log("[DialogueManager] Dialogue paused - stopping speaker and showing options");
+            if (isPaused) return; // Ignore duplicate paused events
+            Debug.Log("[DialogueManager] Dialogue paused - showing options");
             isPaused = true;
-            isAnsweringQuestion = false;  // Question answering complete
+            isAnsweringQuestion = false;
 
-            // Stop current speaker immediately
-            if (currentPlayCoroutine != null)
+            if (!hasInterruptedAudio)
             {
-                StopCoroutine(currentPlayCoroutine);
-                currentPlayCoroutine = null;
-            }
+                // Normal pause path - speaker already finished, clean up
+                if (currentPlayCoroutine != null)
+                {
+                    StopCoroutine(currentPlayCoroutine);
+                    currentPlayCoroutine = null;
+                }
 
-            // Stop audio
-            if (audioSource != null && audioSource.isPlaying)
-            {
-                audioSource.Stop();
-            }
+                if (audioSource != null && audioSource.isPlaying)
+                {
+                    audioSource.Stop();
+                }
 
-            // Return current speaker to idle
-            if (currentSpeaker != null)
-            {
-                currentSpeaker.SetIdle();
-                Debug.Log($"[DialogueManager] {currentSpeaker.agentName} stopped and returned to idle");
+                if (currentSpeaker != null)
+                {
+                    currentSpeaker.SetIdle();
+                }
             }
+            // else: Interrupt path - audio is paused, speaker stays, don't touch
 
-            // Hide subtitle
             subtitleManager?.HideImmediate();
-
-            // Hide thinking indicator
             uiManager?.HideThinking();
-
-            // Show pause panel
             uiManager?.ShowPausePanel();
             isPlaying = false;
         }
@@ -381,9 +367,80 @@ namespace PhilosophySalon
 
             Debug.Log("[DialogueManager] Pause clicked - waiting for current speaker to finish");
 
-            // Only notify backend, don't show panel yet
-            // Panel will show when backend sends "paused" event (after current speaker finishes)
+            // Show "Pausing..." indicator, don't stop audio
+            uiManager?.SetPauseRequested(true);
+
+            // Notify backend - it will let current speaker finish then send "paused"
             webSocketClient?.SendPause();
+        }
+
+        public void OnInterruptClicked()
+        {
+            if (isPaused) return;
+
+            Debug.Log("[DialogueManager] Interrupt clicked - pausing audio");
+
+            // Pause audio (not stop) so we can resume later
+            if (audioSource != null && audioSource.isPlaying)
+            {
+                audioSource.Pause();
+                hasInterruptedAudio = true;
+            }
+            else
+            {
+                hasInterruptedAudio = false;
+            }
+
+            // Stop the playback coroutine (its timer would desync anyway)
+            if (currentPlayCoroutine != null)
+            {
+                StopCoroutine(currentPlayCoroutine);
+                currentPlayCoroutine = null;
+            }
+
+            // Don't set speaker to idle if audio is paused (they'll resume)
+
+            subtitleManager?.HideImmediate();
+            uiManager?.HideThinking();
+
+            // Notify backend - it will cancel task and send "paused"
+            webSocketClient?.SendInterrupt();
+        }
+
+        public void OnStopSpeakerClicked()
+        {
+            Debug.Log("[DialogueManager] Stop speaker clicked - skipping to next");
+            isPaused = false;
+
+            // Hide pause panel
+            uiManager?.HidePausePanel();
+
+            // Stop audio (could be playing or paused from interrupt)
+            hasInterruptedAudio = false;
+            if (audioSource != null)
+            {
+                audioSource.Stop();
+            }
+
+            // Stop current playback coroutine
+            if (currentPlayCoroutine != null)
+            {
+                StopCoroutine(currentPlayCoroutine);
+                currentPlayCoroutine = null;
+            }
+
+            // Return current speaker to idle
+            if (currentSpeaker != null)
+            {
+                currentSpeaker.SetIdle();
+            }
+
+            subtitleManager?.HideImmediate();
+            uiManager?.HideThinking();
+            isPlaying = false;
+
+            // Notify backend - it will cancel and restart loop with next speaker
+            webSocketClient?.SendStopSpeaker();
         }
 
         public void OnResumeClicked()
@@ -392,17 +449,40 @@ namespace PhilosophySalon
 
             Debug.Log("[DialogueManager] Resume clicked");
             isPaused = false;
-
-            // Resume audio
-            if (audioSource != null)
-            {
-                audioSource.UnPause();
-            }
-
-            // Hide pause panel
             uiManager?.HidePausePanel();
 
-            // Notify backend
+            if (hasInterruptedAudio)
+            {
+                // Resume paused audio, wait for it to finish, then tell backend
+                Debug.Log("[DialogueManager] Resuming interrupted audio");
+                hasInterruptedAudio = false;
+                audioSource.UnPause();
+                currentPlayCoroutine = StartCoroutine(WaitForAudioThenResume());
+            }
+            else
+            {
+                // Normal resume - tell backend to continue immediately
+                webSocketClient?.SendResume();
+            }
+        }
+
+        IEnumerator WaitForAudioThenResume()
+        {
+            // Wait for the unpaused audio to finish playing
+            while (audioSource != null && audioSource.isPlaying)
+            {
+                yield return null;
+            }
+
+            // Audio done - clean up speaker
+            if (currentSpeaker != null)
+            {
+                currentSpeaker.SetIdle();
+            }
+            isPlaying = false;
+            currentPlayCoroutine = null;
+
+            // Now tell backend to move to next speaker
             webSocketClient?.SendResume();
         }
 
@@ -421,11 +501,6 @@ namespace PhilosophySalon
             UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenu");
         }
 
-        public void OnInterruptClicked()
-        {
-            webSocketClient?.SendInterrupt();
-        }
-
         public void OnStopClicked()
         {
             webSocketClient?.SendStop();
@@ -437,10 +512,62 @@ namespace PhilosophySalon
             webSocketClient?.SendSetConviviality(value);
         }
 
-        public void OnAskQuestion(string question)
+        public void OnAskQuestion(string question, string[] targetAgents)
         {
+            // Reset pause state so OnPaused works again after question is answered
+            isPaused = false;
+            hasInterruptedAudio = false;
+
+            // Stop any paused/playing audio from before
+            if (audioSource != null)
+            {
+                audioSource.Stop();
+            }
+            if (currentPlayCoroutine != null)
+            {
+                StopCoroutine(currentPlayCoroutine);
+                currentPlayCoroutine = null;
+            }
+
             isAnsweringQuestion = true;
-            webSocketClient?.SendAskQuestion(question);
+            webSocketClient?.SendAskQuestion(question, targetAgents);
+        }
+
+        public void OnChangeTopic(string topic)
+        {
+            if (string.IsNullOrEmpty(topic)) return;
+
+            Debug.Log($"[DialogueManager] Change topic: {topic}");
+            isPaused = false;
+
+            // Stop any playing/paused audio
+            hasInterruptedAudio = false;
+            if (audioSource != null)
+            {
+                audioSource.Stop();
+            }
+
+            // Stop current playback coroutine
+            if (currentPlayCoroutine != null)
+            {
+                StopCoroutine(currentPlayCoroutine);
+                currentPlayCoroutine = null;
+            }
+
+            // Return current speaker to idle
+            if (currentSpeaker != null)
+            {
+                currentSpeaker.SetIdle();
+                currentSpeaker = null;
+            }
+
+            subtitleManager?.HideImmediate();
+            uiManager?.HideThinking();
+            uiManager?.HidePausePanel();
+            isPlaying = false;
+
+            // Notify backend - it will clear history, send dialogue_start, and restart
+            webSocketClient?.SendChangeTopic(topic);
         }
 
         public bool IsPlaying => isPlaying;

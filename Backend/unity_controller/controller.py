@@ -79,8 +79,10 @@ class UnityDialogueController:
 
         # Pause state
         self.is_paused = False
+        self.was_interrupted = False
         self.resume_requested = False
         self.is_answering_question = False
+        self.resume_same_speaker = False
 
         # Task management
         self.main_loop_task = None
@@ -179,21 +181,18 @@ class UnityDialogueController:
         # Start main dialogue loop as a cancellable task
         self.main_loop_task = asyncio.create_task(run_dialogue_loop(self))
 
-        # Monitor loop and handle pause events
-        paused_event_sent = False
+        # Monitor loop - cleans up done tasks.
+        # paused events are sent by dialogue_loop (natural) or message_handler (interrupt).
         try:
             while not self.should_stop:
                 if self.main_loop_task and self.main_loop_task.done():
                     try:
                         self.main_loop_task.result()
                     except asyncio.CancelledError:
-                        if self.is_paused and not self.should_stop and not paused_event_sent:
-                            print("[Dialogue] Paused - sending notification to Unity")
-                            await self.ws_server.send_event("paused", {})
-                            paused_event_sent = True
-
-                if self.main_loop_task and not self.main_loop_task.done():
-                    paused_event_sent = False
+                        pass  # Interrupt handler already sent paused
+                    except Exception as e:
+                        print(f"[Dialogue] Task error: {e}")
+                    self.main_loop_task = None
 
                 await asyncio.sleep(0.2)
 
