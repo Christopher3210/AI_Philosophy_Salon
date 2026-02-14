@@ -92,11 +92,13 @@ class MessageHandler:
         self.controller.resume_requested = True
         print("[Unity] Resume received")
 
-        if self.controller.main_loop_task is None or self.controller.main_loop_task.done():
-            from .dialogue_loop import run_dialogue_loop
-            self.controller.main_loop_task = asyncio.create_task(
-                run_dialogue_loop(self.controller)
-            )
+        # Don't restart dialogue loop if Q&A is running (it handles resume internally)
+        if not self.controller.is_answering_question:
+            if self.controller.main_loop_task is None or self.controller.main_loop_task.done():
+                from .dialogue_loop import run_dialogue_loop
+                self.controller.main_loop_task = asyncio.create_task(
+                    run_dialogue_loop(self.controller)
+                )
 
     def _handle_stop(self):
         """Handle stop/exit event."""
@@ -129,13 +131,26 @@ class MessageHandler:
               f"Conviviality: {self.controller.conviviality}")
 
     async def _handle_ask_question(self, data: dict):
-        """Handle ask_question event."""
+        """Handle ask_question event - runs as task so pause/interrupt can be processed."""
         question = data.get("question")
         target_agents = data.get("target_agents", [])
         if question:
             print(f"[Unity] Received question: {question}, targets: {target_agents}")
+
+            # Cancel current main loop task
+            if self.controller.main_loop_task and not self.controller.main_loop_task.done():
+                self.controller.main_loop_task.cancel()
+                try:
+                    await self.controller.main_loop_task
+                except asyncio.CancelledError:
+                    pass
+
+            # Run as task so handle_message returns immediately
+            # This allows pause/interrupt messages to be processed during Q&A
             from .question_handler import handle_question
-            await handle_question(self.controller, question, target_agents=target_agents)
+            self.controller.main_loop_task = asyncio.create_task(
+                handle_question(self.controller, question, target_agents=target_agents)
+            )
 
     async def _handle_stop_speaker(self):
         """Handle stop_speaker event - skip to next speaker."""

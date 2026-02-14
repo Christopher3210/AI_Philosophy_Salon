@@ -22,15 +22,7 @@ async def handle_question(controller: 'UnityDialogueController', question: str, 
     target_agents : list, optional
         List of agent names selected by user to answer
     """
-    # Cancel main loop immediately to prevent any new speakers
-    if controller.main_loop_task and not controller.main_loop_task.done():
-        controller.main_loop_task.cancel()
-        try:
-            await controller.main_loop_task
-        except asyncio.CancelledError:
-            pass
-        controller.main_loop_task = None
-
+    # main_loop_task cancellation is handled by _handle_ask_question
     controller.is_answering_question = True
     controller.is_paused = False
     controller.was_interrupted = False
