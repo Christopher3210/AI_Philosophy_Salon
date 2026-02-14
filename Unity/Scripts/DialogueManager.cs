@@ -93,7 +93,7 @@ namespace PhilosophySalon
 
             subtitleManager?.HideImmediate();
             uiManager?.HideThinking();
-            uiManager?.ShowPausePanel();
+            uiManager?.ShowPausePanel(hasInterruptedAudio);
             isPlaying = false;
         }
 

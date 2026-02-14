@@ -437,9 +437,9 @@ namespace PhilosophySalon
             }
         }
 
-        public void ShowPausePanel()
+        public void ShowPausePanel(bool isInterrupt = false)
         {
-            Debug.Log($"[UIManager] ShowPausePanel called - pausePanel null? {pausePanel == null}");
+            Debug.Log($"[UIManager] ShowPausePanel called - pausePanel null? {pausePanel == null}, isInterrupt: {isInterrupt}");
 
             // Hide "Pausing..." indicator
             SetPauseRequested(false);
@@ -447,11 +447,16 @@ namespace PhilosophySalon
             if (pausePanel != null)
             {
                 pausePanel.SetActive(true);
-                Debug.Log("[UIManager] PausePanel activated");
             }
             else
             {
                 Debug.LogWarning("[UIManager] pausePanel reference is NULL! Cannot show pause panel.");
+            }
+
+            // Skip Speaker only shows for Interrupt, not for Pause
+            if (skipSpeakerButton != null)
+            {
+                skipSpeakerButton.gameObject.SetActive(isInterrupt);
             }
 
             // Hide pause button while panel is showing
