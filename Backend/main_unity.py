@@ -7,6 +7,7 @@ import os
 from agents.agents_manager import AgentsManager
 from llm.cloud_model_manager import CloudModelManager as ModelManager
 from tts.AzureTTS import AzureTTS
+from tts.AzureSTT import AzureSTT
 from unity_bridge import WebSocketServer
 from unity_controller import UnityDialogueController
 
@@ -35,6 +36,12 @@ async def main():
     )
     tts_engine.clear_output()
 
+    # 4b. Initialize Azure STT (reuses same credentials)
+    stt_engine = AzureSTT(
+        subscription_key="GGOrbCc2fBt6m6hbwdrZH0oi8VyX7uq1Vl2wvb63X8XJ6b0PScL2JQQJ99CAACYeBjFXJ3w3AAAYACOGEacn",
+        region="eastus"
+    )
+
     # 5. Start WebSocket server
     ws_server = WebSocketServer(host="localhost", port=8765)
     await ws_server.start()
@@ -44,6 +51,7 @@ async def main():
         model_manager=model_manager,
         agents_manager=agents_manager,
         tts_engine=tts_engine,
+        stt_engine=stt_engine,
         websocket_server=ws_server,
         history_window=8,
         conviviality=0.5  # Default, can be changed by Unity

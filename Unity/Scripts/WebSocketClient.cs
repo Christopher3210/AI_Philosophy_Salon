@@ -89,6 +89,7 @@ namespace PhilosophySalon
         public UnityEvent<Dictionary<string, float>> OnMotivationUpdate;
         public UnityEvent OnDialogueEnd;
         public UnityEvent OnPaused; // dialogue paused, show options
+        public UnityEvent<string> OnTranscriptionResult; // transcribed text from STT
 
         private WebSocket websocket;
         private bool isConnected = false;
@@ -199,6 +200,11 @@ namespace PhilosophySalon
                     case "paused":
                         Debug.Log($"[WebSocket] OnPaused event null? {OnPaused == null}, listener count: {OnPaused?.GetPersistentEventCount()}");
                         OnPaused?.Invoke();
+                        break;
+
+                    case "transcription_result":
+                        var transcriptionData = JsonUtility.FromJson<TranscriptionResultWrapper>(json);
+                        OnTranscriptionResult?.Invoke(transcriptionData.data.text);
                         break;
 
                     default:
@@ -330,6 +336,15 @@ namespace PhilosophySalon
             Debug.Log("[WebSocket] Sent stop_speaker");
         }
 
+        public async void SendAudioForTranscription(byte[] wavData)
+        {
+            if (!isConnected) return;
+            string base64Audio = System.Convert.ToBase64String(wavData);
+            string json = $"{{\"event\": \"transcribe_audio\", \"data\": {{\"audio\": \"{base64Audio}\"}}}}";
+            await websocket.SendText(json);
+            Debug.Log($"[WebSocket] Sent audio for transcription ({wavData.Length} bytes)");
+        }
+
         public async void SendChangeTopic(string topic)
         {
             if (!isConnected) return;
@@ -377,5 +392,18 @@ namespace PhilosophySalon
     {
         public string @event;
         public AgentResponseData data;
+    }
+
+    [Serializable]
+    public class TranscriptionResultData
+    {
+        public string text;
+    }
+
+    [Serializable]
+    public class TranscriptionResultWrapper
+    {
+        public string @event;
+        public TranscriptionResultData data;
     }
 }

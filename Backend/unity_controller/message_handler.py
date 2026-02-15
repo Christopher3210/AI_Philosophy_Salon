@@ -58,6 +58,9 @@ class MessageHandler:
         elif event == "change_topic":
             await self._handle_change_topic(data)
 
+        elif event == "transcribe_audio":
+            await self._handle_transcribe_audio(data)
+
     async def _handle_pause(self):
         """Handle pause event - let current speaker finish, then pause."""
         self.controller.is_paused = True
@@ -165,6 +168,22 @@ class MessageHandler:
         self.controller.main_loop_task = asyncio.create_task(
             run_dialogue_loop(self.controller)
         )
+
+    async def _handle_transcribe_audio(self, data: dict):
+        """Handle transcribe_audio event - transcribe user audio via Azure STT."""
+        audio_base64 = data.get("audio", "")
+        if not audio_base64:
+            print("[Unity] transcribe_audio received with no audio data")
+            await self.controller.ws_server.send_transcription_result("")
+            return
+
+        print(f"[Unity] Received audio for transcription ({len(audio_base64)} chars base64)")
+        try:
+            text = await self.controller.stt.transcribe_async(audio_base64)
+            await self.controller.ws_server.send_transcription_result(text)
+        except Exception as e:
+            print(f"[Unity] Transcription error: {e}")
+            await self.controller.ws_server.send_transcription_result("")
 
     async def _handle_change_topic(self, data: dict):
         """Handle change_topic event."""

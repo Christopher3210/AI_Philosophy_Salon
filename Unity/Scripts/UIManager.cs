@@ -47,6 +47,12 @@ namespace PhilosophySalon
         [Header("Philosopher Selection")]
         public Toggle[] philosopherToggles;
 
+        [Header("Microphone / Voice Input")]
+        public Button micButton;
+        private bool isRecording = false;
+        private AudioClip micClip;
+        private string micDevice;
+
         [Header("Pause Panel")]
         public GameObject pausePanel;
         public Button pauseButton;
@@ -134,6 +140,11 @@ namespace PhilosophySalon
             if (changeTopicButton != null)
             {
                 changeTopicButton.onClick.AddListener(OnChangeTopicClicked);
+            }
+
+            if (micButton != null)
+            {
+                micButton.onClick.AddListener(OnMicClicked);
             }
 
             // Hide pause panel initially, but keep pause button visible
@@ -434,6 +445,124 @@ namespace PhilosophySalon
             {
                 pauseStatusText.gameObject.SetActive(requested);
                 pauseStatusText.text = "Pausing...";
+            }
+        }
+
+        // ----- Microphone / Voice Input -----
+
+        void OnMicClicked()
+        {
+            if (isRecording)
+                StopRecording();
+            else
+                StartRecording();
+        }
+
+        void StartRecording()
+        {
+            if (Microphone.devices.Length == 0)
+            {
+                Debug.LogWarning("[UIManager] No microphone detected");
+                return;
+            }
+
+            micDevice = Microphone.devices[0];
+            micClip = Microphone.Start(micDevice, false, 30, 16000);
+            isRecording = true;
+
+            // Visual feedback - change button color to red
+            if (micButton != null)
+            {
+                var img = micButton.GetComponent<Image>();
+                if (img != null) img.color = new Color(0.8f, 0.2f, 0.2f);
+                var txt = micButton.GetComponentInChildren<TextMeshProUGUI>();
+                if (txt != null) txt.text = "Stop";
+            }
+
+            Debug.Log("[UIManager] Recording started");
+        }
+
+        void StopRecording()
+        {
+            if (!isRecording) return;
+
+            int lastPos = Microphone.GetPosition(micDevice);
+            Microphone.End(micDevice);
+            isRecording = false;
+
+            // Visual feedback - restore button color
+            if (micButton != null)
+            {
+                var img = micButton.GetComponent<Image>();
+                if (img != null) img.color = new Color(0.3f, 0.5f, 0.7f);
+                var txt = micButton.GetComponentInChildren<TextMeshProUGUI>();
+                if (txt != null) txt.text = "Mic";
+            }
+
+            if (lastPos <= 0 || micClip == null)
+            {
+                Debug.LogWarning("[UIManager] No audio recorded");
+                return;
+            }
+
+            // Trim clip to actual recording length
+            float[] samples = new float[lastPos * micClip.channels];
+            micClip.GetData(samples, 0);
+
+            // Encode to WAV bytes
+            byte[] wavBytes = EncodeToWav(samples, micClip.channels, micClip.frequency);
+
+            // Send to backend for transcription
+            dialogueManager?.webSocketClient?.SendAudioForTranscription(wavBytes);
+            Debug.Log($"[UIManager] Sent {wavBytes.Length} bytes for transcription");
+        }
+
+        byte[] EncodeToWav(float[] samples, int channels, int sampleRate)
+        {
+            int sampleCount = samples.Length;
+            int byteRate = sampleRate * channels * 2; // 16-bit
+            int dataSize = sampleCount * 2;
+            int fileSize = 44 + dataSize;
+
+            byte[] wav = new byte[fileSize];
+
+            // RIFF header
+            System.Text.Encoding.ASCII.GetBytes("RIFF").CopyTo(wav, 0);
+            System.BitConverter.GetBytes(fileSize - 8).CopyTo(wav, 4);
+            System.Text.Encoding.ASCII.GetBytes("WAVE").CopyTo(wav, 8);
+
+            // fmt sub-chunk
+            System.Text.Encoding.ASCII.GetBytes("fmt ").CopyTo(wav, 12);
+            System.BitConverter.GetBytes(16).CopyTo(wav, 16);        // sub-chunk size
+            System.BitConverter.GetBytes((short)1).CopyTo(wav, 20);  // PCM format
+            System.BitConverter.GetBytes((short)channels).CopyTo(wav, 22);
+            System.BitConverter.GetBytes(sampleRate).CopyTo(wav, 24);
+            System.BitConverter.GetBytes(byteRate).CopyTo(wav, 28);
+            System.BitConverter.GetBytes((short)(channels * 2)).CopyTo(wav, 32); // block align
+            System.BitConverter.GetBytes((short)16).CopyTo(wav, 34); // bits per sample
+
+            // data sub-chunk
+            System.Text.Encoding.ASCII.GetBytes("data").CopyTo(wav, 36);
+            System.BitConverter.GetBytes(dataSize).CopyTo(wav, 40);
+
+            // Convert float samples to 16-bit PCM
+            int offset = 44;
+            for (int i = 0; i < sampleCount; i++)
+            {
+                short val = (short)(Mathf.Clamp(samples[i], -1f, 1f) * 32767f);
+                System.BitConverter.GetBytes(val).CopyTo(wav, offset);
+                offset += 2;
+            }
+
+            return wav;
+        }
+
+        public void OnTranscriptionResult(string text)
+        {
+            if (!string.IsNullOrEmpty(text) && questionInput != null)
+            {
+                questionInput.text = text;
+                Debug.Log($"[UIManager] Transcription filled: {text}");
             }
         }
 

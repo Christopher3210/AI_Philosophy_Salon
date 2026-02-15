@@ -150,6 +150,12 @@ class WebSocketServer:
             "scores": motivation_scores
         })
 
+    async def send_transcription_result(self, text: str):
+        """Send transcription result back to Unity."""
+        await self.broadcast("transcription_result", {
+            "text": text
+        })
+
     async def send_dialogue_end(self, summary: Dict[str, Any]):
         """Notify clients that dialogue has ended."""
         await self.broadcast("dialogue_end", {

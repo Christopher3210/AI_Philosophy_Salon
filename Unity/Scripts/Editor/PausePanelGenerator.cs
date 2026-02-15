@@ -98,13 +98,22 @@ namespace PhilosophySalon.Editor
                 toggleRect.offsetMax = Vector2.zero;
             }
 
-            // Question input (full width)
+            // Question input (leave room for mic button on right)
             GameObject inputObj = CreateInputField(questionSection.transform, "QuestionInput");
             RectTransform inputRect = inputObj.GetComponent<RectTransform>();
             inputRect.anchorMin = new Vector2(0, 0.35f);
-            inputRect.anchorMax = new Vector2(1f, 0.65f);
+            inputRect.anchorMax = new Vector2(0.88f, 0.65f);
             inputRect.offsetMin = Vector2.zero;
             inputRect.offsetMax = Vector2.zero;
+
+            // Mic button (next to question input)
+            GameObject micBtnObj = CreateButton(questionSection.transform, "MicButton", "Mic");
+            RectTransform micRect = micBtnObj.GetComponent<RectTransform>();
+            micRect.anchorMin = new Vector2(0.89f, 0.35f);
+            micRect.anchorMax = new Vector2(1f, 0.65f);
+            micRect.offsetMin = Vector2.zero;
+            micRect.offsetMax = Vector2.zero;
+            SetButtonColor(micBtnObj, new Color(0.3f, 0.5f, 0.7f));
 
             // Ask button
             GameObject askBtnObj = CreateButton(questionSection.transform, "AskButton", "Ask Question");
@@ -244,6 +253,7 @@ namespace PhilosophySalon.Editor
                 uiManager.changeTopicButton = topicBtnObj.GetComponent<Button>();
                 uiManager.pauseStatusText = pauseStatusText;
                 uiManager.interruptButton = interruptBtn.GetComponent<Button>();
+                uiManager.micButton = micBtnObj.GetComponent<Button>();
 
                 TMP_InputField input = inputObj.GetComponent<TMP_InputField>();
                 if (uiManager.questionInput == null)

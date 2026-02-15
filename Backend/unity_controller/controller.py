@@ -7,6 +7,7 @@ from typing import List, Dict, Any
 from agents.agents_manager import AgentsManager
 from llm.cloud_model_manager import CloudModelManager as ModelManager
 from tts.AzureTTS import AzureTTS
+from tts.AzureSTT import AzureSTT
 from unity_bridge import WebSocketServer
 
 from controller.speaker_selector import SpeakerSelector
@@ -37,6 +38,7 @@ class UnityDialogueController:
         agents_manager: AgentsManager,
         tts_engine: AzureTTS,
         websocket_server: WebSocketServer,
+        stt_engine: AzureSTT = None,
         history_window: int = 8,
         conviviality: float = 0.5
     ):
@@ -51,6 +53,8 @@ class UnityDialogueController:
             Text-to-speech engine with viseme support
         websocket_server : WebSocketServer
             WebSocket server for Unity communication
+        stt_engine : AzureSTT, optional
+            Speech-to-text engine for voice input
         history_window : int
             Number of recent utterances to include in context
         conviviality : float
@@ -59,6 +63,7 @@ class UnityDialogueController:
         self.model_manager = model_manager
         self.agents_manager = agents_manager
         self.tts = tts_engine
+        self.stt = stt_engine
         self.ws_server = websocket_server
         self.history_window = history_window
         self.conviviality = conviviality

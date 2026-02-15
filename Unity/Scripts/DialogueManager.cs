@@ -56,6 +56,7 @@ namespace PhilosophySalon
                 webSocketClient.OnMotivationUpdate.AddListener(OnMotivationUpdate);
                 webSocketClient.OnDialogueEnd.AddListener(OnDialogueEnd);
                 webSocketClient.OnPaused.AddListener(OnPaused);
+                webSocketClient.OnTranscriptionResult.AddListener(OnTranscriptionReceived);
             }
         }
 
@@ -568,6 +569,12 @@ namespace PhilosophySalon
 
             // Notify backend - it will clear history, send dialogue_start, and restart
             webSocketClient?.SendChangeTopic(topic);
+        }
+
+        void OnTranscriptionReceived(string text)
+        {
+            Debug.Log($"[DialogueManager] Transcription received: {text}");
+            uiManager?.OnTranscriptionResult(text);
         }
 
         public bool IsPlaying => isPlaying;
