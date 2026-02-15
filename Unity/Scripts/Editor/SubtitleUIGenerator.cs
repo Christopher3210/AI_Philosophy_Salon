@@ -44,7 +44,7 @@ namespace PhilosophySalon
             panelRect.anchorMax = new Vector2(0.98f, 0f);
             panelRect.pivot = new Vector2(0.5f, 0f);
             panelRect.anchoredPosition = new Vector2(0, 5);
-            panelRect.sizeDelta = new Vector2(0, 55);
+            panelRect.sizeDelta = new Vector2(0, 120);
 
             Image bgImage = subtitlePanel.AddComponent<Image>();
             bgImage.color = new Color(0, 0, 0, 0.8f);
@@ -59,11 +59,11 @@ namespace PhilosophySalon
             speakerRect.anchorMax = new Vector2(0, 1);
             speakerRect.pivot = new Vector2(0, 0.5f);
             speakerRect.anchoredPosition = new Vector2(6, 0);
-            speakerRect.sizeDelta = new Vector2(65, 0);
+            speakerRect.sizeDelta = new Vector2(130, 0);
 
             TextMeshProUGUI speakerText = speakerObj.AddComponent<TextMeshProUGUI>();
             speakerText.text = "";
-            speakerText.fontSize = 10;
+            speakerText.fontSize = 22;
             speakerText.fontStyle = FontStyles.Bold;
             speakerText.color = Color.yellow;
             speakerText.alignment = TextAlignmentOptions.Left;
@@ -77,12 +77,12 @@ namespace PhilosophySalon
             subtitleRect.anchorMin = Vector2.zero;
             subtitleRect.anchorMax = Vector2.one;
             subtitleRect.pivot = new Vector2(0, 0.5f);
-            subtitleRect.offsetMin = new Vector2(70, 2);
-            subtitleRect.offsetMax = new Vector2(-5, -2);
+            subtitleRect.offsetMin = new Vector2(140, 4);
+            subtitleRect.offsetMax = new Vector2(-10, -4);
 
             TextMeshProUGUI subtitleText = subtitleObj.AddComponent<TextMeshProUGUI>();
             subtitleText.text = "";
-            subtitleText.fontSize = 10;
+            subtitleText.fontSize = 22;
             subtitleText.color = Color.white;
             subtitleText.alignment = TextAlignmentOptions.TopLeft;
             subtitleText.enableWordWrapping = true;
