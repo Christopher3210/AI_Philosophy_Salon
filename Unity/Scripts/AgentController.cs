@@ -25,21 +25,15 @@ namespace PhilosophySalon
 
         [Header("Animation - Idle States")]
         [Tooltip("Multiple idle animation state names (randomly selected)")]
-        public string[] idleAnimations = { "Idle", "Breathing Idle", "Standing Idle" };
+        public string[] idleAnimations = { "Sitting Idle" };
 
         [Header("Animation - Thinking States")]
         [Tooltip("Multiple thinking animation state names (randomly selected)")]
-        public string[] thinkingAnimations = { "Thinking" };
+        public string[] thinkingAnimations = { "Sitting", "Sitting1" };
 
         [Header("Animation - Speaking States")]
         [Tooltip("Multiple speaking animation state names (randomly selected)")]
-        public string[] speakingAnimations = { "Talking", "Talking1", "Talking2" };
-
-        [Header("Animation - Gesture Animations")]
-        [Tooltip("Optional gesture animations that can play during speaking")]
-        public string[] gestureAnimations = { "HeadNod", "Dismissing", "AnnoyedShake" };
-        [Range(0f, 1f)]
-        public float gestureChance = 0.3f;  // 30% chance to add gesture
+        public string[] speakingAnimations = { "Sitting Talking" };
 
         [Header("Lip Sync - Blendshape Mapping")]
         [Tooltip("Maps viseme names to blendshape indices")]
@@ -96,10 +90,8 @@ namespace PhilosophySalon
                 string anim = GetRandomAnimation(idleAnimations);
                 if (!string.IsNullOrEmpty(anim))
                 {
-                    // Strongest method: Rebind and play
-                    animator.Rebind();
-                    animator.Play(anim, 0, 0f);
-                    Debug.Log($"[{agentName}] Idle animation: {anim} (forced)");
+                    animator.CrossFade(anim, 0.2f);
+                    Debug.Log($"[{agentName}] Idle animation: {anim}");
                 }
             }
 
@@ -117,7 +109,7 @@ namespace PhilosophySalon
                 string anim = GetRandomAnimation(thinkingAnimations);
                 if (!string.IsNullOrEmpty(anim))
                 {
-                    animator.CrossFade(anim, 0.1f);
+                    animator.CrossFade(anim, 0.2f);
                     Debug.Log($"[{agentName}] Thinking animation: {anim}");
                 }
             }
@@ -133,41 +125,32 @@ namespace PhilosophySalon
                 string anim = GetRandomAnimation(speakingAnimations);
                 if (!string.IsNullOrEmpty(anim))
                 {
-                    animator.CrossFade(anim, 0.1f);
+                    animator.CrossFade(anim, 0.2f);
                     Debug.Log($"[{agentName}] Speaking animation: {anim}");
                 }
 
-                // Optionally start gesture routine
-                if (gestureAnimations.Length > 0 && gestureChance > 0)
-                {
-                    gestureCoroutine = StartCoroutine(GestureRoutine());
-                }
+                // Switch between speaking animations periodically
+                gestureCoroutine = StartCoroutine(SpeakingVariationRoutine());
             }
         }
 
         /// <summary>
-        /// Periodically trigger random gestures while speaking
+        /// Periodically switch between sitting variations while speaking
+        /// to add natural movement variety
         /// </summary>
-        private IEnumerator GestureRoutine()
+        private IEnumerator SpeakingVariationRoutine()
         {
+            string[] allSitting = { "Sitting Talking", "Sitting", "Sitting1" };
             while (currentState == AgentState.Speaking)
             {
-                // Wait 3-6 seconds between gesture checks
-                yield return new WaitForSeconds(Random.Range(3f, 6f));
+                yield return new WaitForSeconds(Random.Range(4f, 7f));
 
                 if (currentState != AgentState.Speaking)
                     break;
 
-                // Random chance to play gesture
-                if (Random.value < gestureChance)
-                {
-                    string gesture = GetRandomAnimation(gestureAnimations);
-                    if (!string.IsNullOrEmpty(gesture))
-                    {
-                        animator.SetTrigger(gesture);
-                        Debug.Log($"[{agentName}] Gesture: {gesture}");
-                    }
-                }
+                string variation = allSitting[Random.Range(0, allSitting.Length)];
+                animator.CrossFade(variation, 0.3f);
+                Debug.Log($"[{agentName}] Speaking variation: {variation}");
             }
         }
 
