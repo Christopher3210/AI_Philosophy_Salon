@@ -261,6 +261,7 @@ namespace PhilosophySalon
                     visemeMap[viseme.viseme] = newMapping;
                 }
             }
+
         }
 
         void SetTargetWeight(int index, float weight)

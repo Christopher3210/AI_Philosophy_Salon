@@ -14,6 +14,7 @@ namespace PhilosophySalon
         public UIManager uiManager;
         public SubtitleManager subtitleManager;
         public AudioSource audioSource;
+        public CameraController cameraController;
 
         [Header("Agent Controllers")]
         public AgentController[] agentControllers;
@@ -96,6 +97,9 @@ namespace PhilosophySalon
             uiManager?.HideThinking();
             uiManager?.ShowPausePanel(hasInterruptedAudio);
             isPlaying = false;
+
+            // Return camera to overview when paused
+            cameraController?.ReturnToOverview();
         }
 
         void OnConnected()
@@ -166,6 +170,9 @@ namespace PhilosophySalon
                 // Show thinking animation
                 agent.SetThinking();
                 currentSpeaker = agent;
+
+                // Move camera to focus on this agent
+                cameraController?.FocusOnSpeaker(agent.transform);
             }
 
             uiManager?.ShowThinking(agentName);
@@ -342,6 +349,7 @@ namespace PhilosophySalon
             Debug.Log("[DialogueManager] Dialogue ended");
             uiManager?.ShowDialogueEnded();
             StopAllAgentAnimations();
+            cameraController?.ReturnToOverview();
         }
 
         void StopAllAgentAnimations()
