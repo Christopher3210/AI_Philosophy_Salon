@@ -32,7 +32,7 @@ namespace PhilosophySalon
         public float blendSpeed = 0.1f;
         [Range(0f, 1f)]
         [Tooltip("Overall lip sync strength")]
-        public float intensity = 0.7f;
+        public float intensity = 1.0f;
 
         [Header("Audio Sync")]
         [Tooltip("Link to AudioSource for precise sync")]

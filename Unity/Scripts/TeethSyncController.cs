@@ -15,6 +15,10 @@ namespace PhilosophySalon
         [Tooltip("The teeth SkinnedMeshRenderer (target to mirror weights to)")]
         public SkinnedMeshRenderer teethRenderer;
 
+        [Range(1f, 3f)]
+        [Tooltip("Multiplier for teeth blendshape weights (increase for more open mouth)")]
+        public float weightMultiplier = 1.5f;
+
         // Cached mapping: headBlendshapeIndex -> teethBlendshapeIndex
         private int[] indexMap;
         private int headBlendCount;
@@ -75,8 +79,8 @@ namespace PhilosophySalon
                 int teethIndex = indexMap[i];
                 if (teethIndex >= 0)
                 {
-                    float weight = headRenderer.GetBlendShapeWeight(i);
-                    teethRenderer.SetBlendShapeWeight(teethIndex, weight);
+                    float weight = headRenderer.GetBlendShapeWeight(i) * weightMultiplier;
+                    teethRenderer.SetBlendShapeWeight(teethIndex, Mathf.Min(weight, 100f));
                 }
             }
         }
