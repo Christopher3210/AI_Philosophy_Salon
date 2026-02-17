@@ -67,7 +67,6 @@ namespace PhilosophySalon
 
         void OnPaused()
         {
-            if (isPaused) return; // Ignore duplicate paused events
             Debug.Log("[DialogueManager] Dialogue paused - showing options");
             isPaused = true;
             isAnsweringQuestion = false;
@@ -93,13 +92,17 @@ namespace PhilosophySalon
             }
             // else: Interrupt path - audio is paused, speaker stays, don't touch
 
-            subtitleManager?.HideImmediate();
             uiManager?.HideThinking();
             uiManager?.ShowPausePanel(hasInterruptedAudio);
             isPlaying = false;
 
-            // Return camera to overview when paused
-            cameraController?.ReturnToOverview();
+            if (!hasInterruptedAudio)
+            {
+                // Normal pause - hide subtitle and return camera
+                subtitleManager?.HideImmediate();
+                cameraController?.ReturnToOverview();
+            }
+            // Interrupt with paused audio: keep subtitle and camera position for resume
         }
 
         void OnConnected()
@@ -385,8 +388,6 @@ namespace PhilosophySalon
 
         public void OnInterruptClicked()
         {
-            if (isPaused) return;
-
             Debug.Log("[DialogueManager] Interrupt clicked - pausing audio");
 
             // Pause audio (not stop) so we can resume later
@@ -408,8 +409,8 @@ namespace PhilosophySalon
             }
 
             // Don't set speaker to idle if audio is paused (they'll resume)
+            // Keep subtitle visible so it shows again on resume
 
-            subtitleManager?.HideImmediate();
             uiManager?.HideThinking();
 
             // Notify backend - it will cancel task and send "paused"
@@ -483,7 +484,9 @@ namespace PhilosophySalon
                 yield return null;
             }
 
-            // Audio done - clean up speaker
+            // Audio done - hide subtitle and clean up speaker
+            subtitleManager?.HideSubtitle();
+
             if (currentSpeaker != null)
             {
                 currentSpeaker.SetIdle();

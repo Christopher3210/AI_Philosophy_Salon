@@ -66,3 +66,5 @@ desktop.ini
 
 # ---- Git keepers (preserve empty folders) ----
 !.gitkeep
+Backend/dist/
+Backend/build/

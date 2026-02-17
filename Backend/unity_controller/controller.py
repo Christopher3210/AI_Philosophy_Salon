@@ -104,6 +104,31 @@ class UnityDialogueController:
         # Logger (initialized when dialogue starts)
         self.logger = None
 
+    def reset(self):
+        """Reset all dialogue state for a new session."""
+        self.history.clear()
+        self.should_stop = False
+        self.speech_count = 0
+        self.last_speaker = None
+        self.pending_topic = None
+        self.settings_received = False
+        self.is_paused = False
+        self.was_interrupted = False
+        self.resume_requested = False
+        self.is_answering_question = False
+        self.resume_same_speaker = False
+        self.main_loop_task = None
+        self.dialogue_topic = None
+        self.current_topic = None
+        self.logger = None
+        self.agents = self.all_agents
+        self.speaker_selector = SpeakerSelector(self.agents, self.history)
+        self.target_detector = TargetDetector(self.agents, model_manager=self.model_manager)
+        # Reset agent motivation scores
+        for agent in self.all_agents:
+            agent.motivation_score = 5.0
+        print("[Controller] State reset for new session")
+
     def build_context(self) -> str:
         """Build context from recent dialogue history."""
         recent = self.history[-self.history_window:]

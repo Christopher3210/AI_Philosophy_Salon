@@ -57,9 +57,12 @@ async def main():
         conviviality=0.5  # Default, can be changed by Unity
     )
 
-    # 7. Run dialogue
+    # 7. Run dialogue loop (supports multiple sessions)
     try:
-        await controller.run_dialogue()
+        while True:
+            await controller.run_dialogue()
+            print("\n[Main] Dialogue ended. Waiting for next session...")
+            controller.reset()
     finally:
         await ws_server.stop()
 
