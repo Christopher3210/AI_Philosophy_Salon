@@ -65,28 +65,24 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
             conviviality=controller.conviviality
         )
 
-        # Build context and prompt with bridging phrase instruction
+        # Build context and prompt
         context = controller.build_context()
         context_block = f"Recent dialogue:\n{context}\n\n" if context else ""
 
-        # Add bridging phrase instruction if there was a previous speaker
-        bridging_instruction = ""
-        if controller.last_speaker:
-            bridging_instruction = (
-                f"The last speaker was {controller.last_speaker}. "
-                f"Start with a brief acknowledgment of their point "
-                f"(e.g., 'I see your point...', 'Building on that...', "
-                f"'While I respect that view...'), then give your own view.\n"
-            )
+        # Build list of other philosophers for invite instruction
+        other_names = [a.name for a in controller.agents if a.name != speaker.name]
+        others_str = ", ".join(other_names)
 
         user_prompt = (
             f"Debate topic: {topic}\n\n"
             f"{context_block}"
-            f"{bridging_instruction}"
             f"Respond to this debate directly in first person.\n"
-            f"- Use 1-3 concise sentences.\n"
+            f"- Use 2-3 concise sentences.\n"
             f"- {tone_instruction}\n"
-            f"- Avoid repeating what has already been said.\n"
+            f"- Do NOT repeat or paraphrase what the previous speaker just said — offer your own distinct perspective.\n"
+            f"- Do NOT open with generic filler phrases like 'I see your point', 'Indeed', 'Certainly', or 'Building on that'.\n"
+            f"- Where relevant, explicitly reference one of your own works by name and connect it to the topic.\n"
+            f"- Occasionally (not every turn), end by posing a direct question to one of the other philosophers ({others_str}) by name.\n"
             f"- Do NOT say 'As {speaker.name}' or refer to yourself in third person.\n"
         )
 
