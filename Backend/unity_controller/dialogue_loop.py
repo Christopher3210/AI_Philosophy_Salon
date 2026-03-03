@@ -90,14 +90,23 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
             if random.random() < 0.3 else ""
         )
 
+        # Add direct engagement instruction if there was a previous speaker
+        engagement_instruction = ""
+        if controller.last_speaker:
+            engagement_instruction = (
+                f"- Directly engage with a specific argument {controller.last_speaker} just made — "
+                f"challenge it, qualify it, or build on it with your own reasoning. "
+                f"Do NOT use generic openers like 'I see your point' or 'Indeed'; instead, name the argument and take a position on it.\n"
+            )
+
         user_prompt = (
             f"Debate topic: {topic}\n\n"
             f"{context_block}"
             f"Respond to this debate directly in first person.\n"
             f"- Use 2-3 concise sentences.\n"
             f"- {tone_instruction}\n"
-            f"- Do NOT repeat or paraphrase what the previous speaker just said — offer your own distinct perspective.\n"
-            f"- Do NOT open with generic filler phrases like 'I see your point', 'Indeed', 'Certainly', or 'Building on that'.\n"
+            f"{engagement_instruction}"
+            f"- Do NOT simply restate your own views from scratch — your response must be shaped by what was just said.\n"
             f"{ref_instruction}"
             f"{invite_instruction}"
             f"- Do NOT say 'As {speaker.name}' or refer to yourself in third person.\n"
