@@ -2,6 +2,7 @@
 # Main dialogue loop for Unity mode
 
 import asyncio
+import random
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -36,7 +37,7 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
             await asyncio.sleep(0.1)
             continue
 
-        # Select speaker: resume same speaker after interrupt, otherwise next
+        # Select speaker: resume same speaker after interrupt, honour invite override, otherwise next
         if controller.resume_same_speaker and controller.last_speaker:
             speaker = next(
                 (a for a in controller.agents if a.name == controller.last_speaker),
@@ -45,6 +46,13 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
             if speaker is None:
                 speaker = controller.speaker_selector.select_next_speaker()
             controller.resume_same_speaker = False
+        elif getattr(controller, 'next_speaker_override', None):
+            override_name = controller.next_speaker_override
+            controller.next_speaker_override = None
+            speaker = next(
+                (a for a in controller.agents if a.name == override_name),
+                controller.speaker_selector.select_next_speaker()
+            )
         else:
             speaker = controller.speaker_selector.select_next_speaker()
 
@@ -69,9 +77,18 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
         context = controller.build_context()
         context_block = f"Recent dialogue:\n{context}\n\n" if context else ""
 
-        # Build list of other philosophers for invite instruction
+        # Build optional instructions with probability to avoid repetition
         other_names = [a.name for a in controller.agents if a.name != speaker.name]
         others_str = ", ".join(other_names)
+
+        ref_instruction = (
+            f"- Where it genuinely fits, reference one of your own works by name.\n"
+            if random.random() < 0.4 else ""
+        )
+        invite_instruction = (
+            f"- End with a direct question to one of the other philosophers ({others_str}) by name.\n"
+            if random.random() < 0.3 else ""
+        )
 
         user_prompt = (
             f"Debate topic: {topic}\n\n"
@@ -81,8 +98,8 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
             f"- {tone_instruction}\n"
             f"- Do NOT repeat or paraphrase what the previous speaker just said — offer your own distinct perspective.\n"
             f"- Do NOT open with generic filler phrases like 'I see your point', 'Indeed', 'Certainly', or 'Building on that'.\n"
-            f"- Where relevant, explicitly reference one of your own works by name and connect it to the topic.\n"
-            f"- Occasionally (not every turn), end by posing a direct question to one of the other philosophers ({others_str}) by name.\n"
+            f"{ref_instruction}"
+            f"{invite_instruction}"
             f"- Do NOT say 'As {speaker.name}' or refer to yourself in third person.\n"
         )
 
@@ -102,6 +119,9 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
 
         # Clean speaker name from reply
         reply = _clean_reply(reply, speaker.name)
+
+        # Detect if this reply invites a specific philosopher to respond next
+        controller.next_speaker_override = _detect_invited_speaker(reply, other_names)
 
         # Generate TTS audio and viseme data
         audio_path, viseme_data = await controller.generate_speech(speaker.name, reply)
@@ -175,3 +195,19 @@ def _clean_reply(reply: str, speaker_name: str) -> str:
         if reply.startswith(":"):
             reply = reply[1:].strip()
     return reply
+
+
+def _detect_invited_speaker(reply: str, other_names: list) -> str | None:
+    """
+    Detect if the reply ends with a question directed at a specific philosopher.
+    Returns the invited philosopher's name, or None.
+    """
+    if '?' not in reply:
+        return None
+    # Only look at the last sentence
+    sentences = [s.strip() for s in reply.replace('?', '?.').split('.') if s.strip()]
+    last = sentences[-1] if sentences else ""
+    for name in other_names:
+        if name in last:
+            return name
+    return None

@@ -28,8 +28,8 @@ async def main():
 
     # 4. Initialize Azure TTS with viseme support
     tts_engine = AzureTTS(
-        subscription_key="GGOrbCc2fBt6m6hbwdrZH0oi8VyX7uq1Vl2wvb63X8XJ6b0PScL2JQQJ99CAACYeBjFXJ3w3AAAYACOGEacn",
-        region="eastus",
+        subscription_key="9c0352cb32d745a0b5508f4d89097b6a",
+        region="southeastasia",
         voice_map=voice_map,
         output_dir="tts_output",
         auto_play=False  # Unity handles audio playback
@@ -38,8 +38,8 @@ async def main():
 
     # 4b. Initialize Azure STT (reuses same credentials)
     stt_engine = AzureSTT(
-        subscription_key="GGOrbCc2fBt6m6hbwdrZH0oi8VyX7uq1Vl2wvb63X8XJ6b0PScL2JQQJ99CAACYeBjFXJ3w3AAAYACOGEacn",
-        region="eastus"
+        subscription_key="9c0352cb32d745a0b5508f4d89097b6a",
+        region="southeastasia"
     )
 
     # 5. Start WebSocket server
