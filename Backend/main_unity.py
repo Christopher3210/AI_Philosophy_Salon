@@ -5,7 +5,7 @@ import asyncio
 import os
 
 from agents.agents_manager import AgentsManager
-from llm.cloud_model_manager import CloudModelManager as ModelManager
+from llm.local_model_manager import LocalModelManager as ModelManager
 from tts.AzureTTS import AzureTTS
 from tts.AzureSTT import AzureSTT
 from unity_bridge import WebSocketServer
@@ -15,10 +15,10 @@ from unity_controller import UnityDialogueController
 async def main():
     """Main entry point for Unity mode."""
 
-    # 1. Initialize model manager (OpenAI API for fast responses)
-    model_manager = ModelManager(
-        api_key="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"
-    )
+    # 1. Initialize local model manager (Ollama + Mistral 7B)
+    # Requires Ollama running locally: https://ollama.com/download
+    # Then run: ollama pull mistral
+    model_manager = ModelManager()
 
     # 2. Load agents from config files
     agents_manager = AgentsManager(cfg_dir="agents/configs")
