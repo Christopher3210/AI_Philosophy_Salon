@@ -59,13 +59,13 @@ namespace PhilosophySalon
             Vector3 speakerPos = speaker.position;
             Vector3 lookAtPoint = speakerPos + Vector3.up * lookAtHeightOffset;
 
-            // Use speaker's forward direction to place camera in front of their face
-            Vector3 speakerForward = speaker.forward;
-            speakerForward.y = 0;
-            speakerForward.Normalize();
+            // Place camera on the audience side (toward overview position)
+            // This guarantees the camera stays inside the building
+            Vector3 toAudience = (overviewPosition - speakerPos);
+            toAudience.y = 0;
+            toAudience.Normalize();
 
-            // Place camera in front of where the speaker is facing
-            targetPosition = speakerPos + speakerForward * closeupDistance;
+            targetPosition = speakerPos + toAudience * closeupDistance;
             targetPosition.y = closeupHeight;
 
             // Look at the speaker's upper body
