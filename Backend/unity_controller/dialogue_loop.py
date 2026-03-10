@@ -83,7 +83,7 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
 
         ref_instruction = (
             f"- Where it genuinely fits, reference one of your own works by name.\n"
-            if random.random() < 0.4 else ""
+            if random.random() < 0.6 else ""
         )
         invite_instruction = (
             f"- End with a direct question to one of the other philosophers ({others_str}) by name.\n"
@@ -99,11 +99,24 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
                 f"Do NOT use generic openers like 'I see your point' or 'Indeed'; instead, name the argument and take a position on it.\n"
             )
 
+        length_roll = random.random()
+        if length_roll < 0.35:
+            length_instruction = "Reply with a single short reaction — under 20 words, no complex clauses."
+            target_sentences = 1
+        elif length_roll < 0.75:
+            length_instruction = "Reply in two sentences."
+            target_sentences = 2
+        else:
+            length_instruction = "Reply in three sentences."
+            target_sentences = 3
+
+        max_tokens = 40 if target_sentences == 1 else 150
+
         user_prompt = (
             f"Debate topic: {topic}\n\n"
             f"{context_block}"
             f"Respond to this debate directly in first person.\n"
-            f"- Use 2-3 concise sentences.\n"
+            f"- {length_instruction}\n"
             f"- {tone_instruction}\n"
             f"{engagement_instruction}"
             f"- Do NOT simply restate your own views from scratch — your response must be shaped by what was just said.\n"
@@ -120,7 +133,7 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
             speaker.model_key,
             speaker.system_prompt,
             user_prompt,
-            150,
+            max_tokens,
             0.7,
         )
 
@@ -128,6 +141,15 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
 
         # Clean speaker name from reply
         reply = _clean_reply(reply, speaker.name)
+
+        # Trim to target sentence count (find Nth sentence boundary, cut there)
+        import re
+        sentences = re.split(r'(?<=[.!?])\s+', reply.strip())
+        sentences = [s for s in sentences if s.strip()]
+        if len(sentences) > target_sentences:
+            reply = " ".join(sentences[:target_sentences])
+            if reply[-1] not in '.!?':
+                reply += '.'
 
         # Detect if this reply invites a specific philosopher to respond next
         controller.next_speaker_override = _detect_invited_speaker(reply, other_names)

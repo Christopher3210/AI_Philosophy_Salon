@@ -14,7 +14,7 @@ namespace PhilosophySalon
         [Tooltip("How far in front of the speaker the camera stops")]
         public float closeupDistance = 180f;
         [Tooltip("Camera height when zoomed in")]
-        public float closeupHeight = 140f;
+        public float closeupHeight = 170f;
         [Tooltip("Where on the speaker to look at (Y offset from speaker position)")]
         public float lookAtHeightOffset = 50f;
 
