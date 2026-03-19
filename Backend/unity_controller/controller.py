@@ -91,6 +91,7 @@ class UnityDialogueController:
 
         # Task management
         self.main_loop_task = None
+        self.prefetch_task = None  # Pre-computation task for next turn
         self.dialogue_topic = None
         self.current_topic = None
 
@@ -118,6 +119,7 @@ class UnityDialogueController:
         self.is_answering_question = False
         self.resume_same_speaker = False
         self.main_loop_task = None
+        self.prefetch_task = None
         self.dialogue_topic = None
         self.current_topic = None
         self.logger = None
@@ -229,6 +231,14 @@ class UnityDialogueController:
         except asyncio.CancelledError:
             print("\n[Dialogue] Run cancelled")
         finally:
+            # Cancel prefetch if running
+            if self.prefetch_task and not self.prefetch_task.done():
+                self.prefetch_task.cancel()
+                try:
+                    await self.prefetch_task
+                except asyncio.CancelledError:
+                    pass
+
             # Cancel main loop if still running
             if self.main_loop_task and not self.main_loop_task.done():
                 self.main_loop_task.cancel()

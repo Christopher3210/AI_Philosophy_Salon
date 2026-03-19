@@ -251,7 +251,7 @@ class AzureTTS:
 def create_azure_tts(output_dir: str = "tts_output") -> AzureTTS:
     """Create AzureTTS instance with default credentials."""
     return AzureTTS(
-        subscription_key="GGOrbCc2fBt6m6hbwdrZH0oi8VyX7uq1Vl2wvb63X8XJ6b0PScL2JQQJ99CAACYeBjFXJ3w3AAAYACOGEacn",
+        subscription_key="87MplLeDZRkxrDwt62jOVHtVyY7CWvJrz41zsUCYPg0c8dcMa5PYJQQJ99CCACqBBLyXJ3w3AAAYACOGnHn6",
         region="eastus",
         output_dir=output_dir
     )

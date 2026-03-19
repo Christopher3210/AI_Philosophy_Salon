@@ -61,12 +61,21 @@ class MessageHandler:
         elif event == "transcribe_audio":
             await self._handle_transcribe_audio(data)
 
+    def _cancel_prefetch(self):
+        """Cancel any running pre-computation task."""
+        if self.controller.prefetch_task and not self.controller.prefetch_task.done():
+            self.controller.prefetch_task.cancel()
+            print("[Unity] Prefetch task cancelled")
+        self.controller.prefetch_task = None
+
     async def _handle_pause(self):
         """Handle pause event - let current speaker finish, then pause."""
         self.controller.is_paused = True
         self.controller.was_interrupted = False
         self.controller.resume_requested = False
         self.controller.resume_same_speaker = False
+        # Cancel prefetch — we don't know when/if user will resume
+        self._cancel_prefetch()
         print("[Unity] Pause received - will pause after current speaker finishes")
         # Do NOT cancel the task; the dialogue loop will check is_paused
         # and send 'paused' event after the current turn completes.
@@ -78,6 +87,9 @@ class MessageHandler:
         self.controller.resume_requested = False
         self.controller.resume_same_speaker = False
         print("[Unity] Interrupt received - cancelling main loop task immediately")
+
+        # Cancel prefetch task
+        self._cancel_prefetch()
 
         # Only cancel the task if it's a normal dialogue loop (not Q&A)
         # Q&A handler checks is_paused internally to support continue/skip
@@ -106,6 +118,7 @@ class MessageHandler:
     def _handle_stop(self):
         """Handle stop/exit event."""
         self.controller.should_stop = True
+        self._cancel_prefetch()
         print("[Unity] Stop/Exit received")
 
     def _handle_set_conviviality(self, data: dict):
@@ -140,6 +153,9 @@ class MessageHandler:
         if question:
             print(f"[Unity] Received question: {question}, targets: {target_agents}")
 
+            # Cancel prefetch task
+            self._cancel_prefetch()
+
             # Cancel current main loop task
             if self.controller.main_loop_task and not self.controller.main_loop_task.done():
                 self.controller.main_loop_task.cancel()
@@ -160,6 +176,9 @@ class MessageHandler:
         print("[Unity] Stop speaker - skipping to next")
         self.controller.is_paused = False
         self.controller.resume_same_speaker = False
+
+        # Cancel prefetch task
+        self._cancel_prefetch()
 
         if self.controller.main_loop_task and not self.controller.main_loop_task.done():
             self.controller.main_loop_task.cancel()
@@ -197,6 +216,9 @@ class MessageHandler:
             self.controller.history.clear()
             self.controller.last_speaker = None
             self.controller.speech_count = 0
+
+            # Cancel prefetch task
+            self._cancel_prefetch()
 
             # Cancel current task and restart
             if self.controller.main_loop_task and not self.controller.main_loop_task.done():

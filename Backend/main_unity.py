@@ -28,7 +28,7 @@ async def main():
 
     # 4. Initialize Azure TTS with viseme support
     tts_engine = AzureTTS(
-        subscription_key="9c0352cb32d745a0b5508f4d89097b6a",
+        subscription_key="87MplLeDZRkxrDwt62jOVHtVyY7CWvJrz41zsUCYPg0c8dcMa5PYJQQJ99CCACqBBLyXJ3w3AAAYACOGnHn6",
         region="southeastasia",
         voice_map=voice_map,
         output_dir="tts_output",
@@ -38,7 +38,7 @@ async def main():
 
     # 4b. Initialize Azure STT (reuses same credentials)
     stt_engine = AzureSTT(
-        subscription_key="9c0352cb32d745a0b5508f4d89097b6a",
+        subscription_key="87MplLeDZRkxrDwt62jOVHtVyY7CWvJrz41zsUCYPg0c8dcMa5PYJQQJ99CCACqBBLyXJ3w3AAAYACOGnHn6",
         region="southeastasia"
     )
 
