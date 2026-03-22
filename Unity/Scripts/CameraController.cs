@@ -1,5 +1,5 @@
 // CameraController.cs
-// Smooth camera follow for the active speaker
+// Smooth camera follow for the active speaker + mouse look during debate
 
 using UnityEngine;
 
@@ -23,6 +23,18 @@ namespace PhilosophySalon
         public float rotateSpeed = 2f;
         public float returnSpeed = 1.5f;
 
+        [Header("Mouse Look")]
+        [Tooltip("Enable mouse look during debate")]
+        public bool mouseLookEnabled = true;
+        [Tooltip("Mouse sensitivity")]
+        public float mouseSensitivity = 2f;
+        [Tooltip("Maximum horizontal rotation from base angle (degrees)")]
+        public float maxYawOffset = 40f;
+        [Tooltip("Maximum vertical rotation from base angle (degrees)")]
+        public float maxPitchOffset = 25f;
+        [Tooltip("Hold right mouse button to look around")]
+        public bool requireRightClick = true;
+
         private Vector3 overviewPosition;
         private Quaternion overviewRotation;
         private Vector3 targetPosition;
@@ -30,20 +42,75 @@ namespace PhilosophySalon
         private Transform currentTarget;
         private bool isFollowing = false;
 
+        // Mouse look state
+        private float yawOffset = 0f;
+        private float pitchOffset = 0f;
+        private Quaternion baseRotation;
+        private bool isMouseLooking = false;
+
         void Start()
         {
-            // Store the initial camera position as the overview shot
             overviewPosition = transform.position;
             overviewRotation = transform.rotation;
             targetPosition = overviewPosition;
             targetRotation = overviewRotation;
+            baseRotation = overviewRotation;
         }
 
         void LateUpdate()
         {
+            // Handle mouse look input
+            HandleMouseLook();
+
             float speed = isFollowing ? moveSpeed : returnSpeed;
             transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * speed);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * speed);
+
+            if (isMouseLooking)
+            {
+                // Apply mouse look rotation on top of base rotation
+                Quaternion yawRot = Quaternion.AngleAxis(yawOffset, Vector3.up);
+                Quaternion pitchRot = Quaternion.AngleAxis(-pitchOffset, transform.right);
+                Quaternion finalRotation = yawRot * baseRotation * Quaternion.Euler(-pitchOffset, 0, 0);
+
+                // Reconstruct: apply yaw globally, pitch locally
+                Vector3 baseEuler = baseRotation.eulerAngles;
+                finalRotation = Quaternion.Euler(baseEuler.x + pitchOffset, baseEuler.y + yawOffset, 0);
+
+                transform.rotation = Quaternion.Slerp(transform.rotation, finalRotation, Time.deltaTime * 10f);
+            }
+            else
+            {
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * speed);
+            }
+        }
+
+        private void HandleMouseLook()
+        {
+            if (!mouseLookEnabled) return;
+
+            if (requireRightClick && Input.GetMouseButtonDown(1))
+            {
+                isMouseLooking = true;
+                baseRotation = targetRotation;
+                yawOffset = 0f;
+                pitchOffset = 0f;
+            }
+
+            if (isMouseLooking && Input.GetMouseButton(1))
+            {
+                float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
+                float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
+
+                yawOffset = Mathf.Clamp(yawOffset + mouseX, -maxYawOffset, maxYawOffset);
+                pitchOffset = Mathf.Clamp(pitchOffset - mouseY, -maxPitchOffset, maxPitchOffset);
+            }
+
+            if (isMouseLooking && Input.GetMouseButtonUp(1))
+            {
+                isMouseLooking = false;
+                yawOffset = 0f;
+                pitchOffset = 0f;
+            }
         }
 
         /// <summary>
@@ -59,17 +126,18 @@ namespace PhilosophySalon
             Vector3 speakerPos = speaker.position;
             Vector3 lookAtPoint = speakerPos + Vector3.up * lookAtHeightOffset;
 
-            // Place camera on the audience side (toward overview position)
-            // This guarantees the camera stays inside the building
-            Vector3 toAudience = (overviewPosition - speakerPos);
-            toAudience.y = 0;
-            toAudience.Normalize();
+            // Place camera in front of the speaker's face
+            Vector3 facingDir = speaker.forward;
+            facingDir.y = 0;
+            facingDir.Normalize();
 
-            targetPosition = speakerPos + toAudience * closeupDistance;
+            targetPosition = speakerPos + facingDir * closeupDistance;
             targetPosition.y = closeupHeight;
 
-            // Look at the speaker's upper body
             targetRotation = Quaternion.LookRotation(lookAtPoint - targetPosition);
+
+            // Update base rotation for mouse look
+            baseRotation = targetRotation;
         }
 
         /// <summary>
@@ -81,11 +149,17 @@ namespace PhilosophySalon
             isFollowing = false;
             targetPosition = overviewPosition;
             targetRotation = overviewRotation;
+            baseRotation = overviewRotation;
+
+            // Reset mouse look
+            if (isMouseLooking)
+            {
+                isMouseLooking = false;
+                yawOffset = 0f;
+                pitchOffset = 0f;
+            }
         }
 
-        /// <summary>
-        /// Check if camera is currently following a speaker
-        /// </summary>
         public bool IsFollowing => isFollowing;
     }
 }

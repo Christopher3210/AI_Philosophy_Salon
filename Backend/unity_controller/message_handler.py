@@ -133,6 +133,10 @@ class MessageHandler:
         new_conv = data.get("conviviality", 0.5)
         self.controller.conviviality = max(0.0, min(1.0, new_conv))
 
+        # Debate duration in minutes (0 = unlimited)
+        duration_minutes = data.get("duration", 0)
+        self.controller.debate_duration = int(duration_minutes * 60)
+
         # Support dynamic agent selection
         selected_agents = data.get("selected_agents")
         if selected_agents:
@@ -144,7 +148,8 @@ class MessageHandler:
 
         self.controller.settings_received = True
         print(f"[Unity] Start dialogue - Topic: {self.controller.pending_topic}, "
-              f"Conviviality: {self.controller.conviviality}")
+              f"Conviviality: {self.controller.conviviality}, "
+              f"Duration: {duration_minutes}min")
 
     async def _handle_ask_question(self, data: dict):
         """Handle ask_question event - runs as task so pause/interrupt can be processed."""

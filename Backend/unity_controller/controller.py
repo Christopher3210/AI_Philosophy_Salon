@@ -95,6 +95,10 @@ class UnityDialogueController:
         self.dialogue_topic = None
         self.current_topic = None
 
+        # Timed debate
+        self.debate_duration = 0  # 0 = no limit (seconds)
+        self.debate_start_time = None
+
         # Sub-modules
         self.speaker_selector = SpeakerSelector(self.agents, self.history)
         self.motivation_scorer = MotivationScorer(self.model_manager)
@@ -122,6 +126,8 @@ class UnityDialogueController:
         self.prefetch_task = None
         self.dialogue_topic = None
         self.current_topic = None
+        self.debate_duration = 0
+        self.debate_start_time = None
         self.logger = None
         self.agents = self.all_agents
         self.speaker_selector = SpeakerSelector(self.agents, self.history)
@@ -208,7 +214,11 @@ class UnityDialogueController:
         motivation_scores = {agent.name: agent.motivation_score for agent in self.agents}
         await self.ws_server.send_motivation_update(motivation_scores)
 
-        print(f"\n[Dialogue] Starting topic: {actual_topic}\n")
+        # Record debate start time
+        import time
+        self.debate_start_time = time.time()
+        duration_str = f"{self.debate_duration // 60}m" if self.debate_duration > 0 else "unlimited"
+        print(f"\n[Dialogue] Starting topic: {actual_topic} (duration: {duration_str})\n")
 
         # Start main dialogue loop as a cancellable task
         self.main_loop_task = asyncio.create_task(run_dialogue_loop(self))

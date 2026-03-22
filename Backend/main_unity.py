@@ -6,7 +6,7 @@ import os
 
 from agents.agents_manager import AgentsManager
 from llm.local_model_manager import LocalModelManager as ModelManager
-from tts.AzureTTS import AzureTTS
+from tts.LocalTTS import LocalTTS
 from tts.AzureSTT import AzureSTT
 from unity_bridge import WebSocketServer
 from unity_controller import UnityDialogueController
@@ -23,20 +23,16 @@ async def main():
     # 2. Load agents from config files
     agents_manager = AgentsManager(cfg_dir="agents/configs")
 
-    # 3. Build voice map from agent configs
-    voice_map = {agent.name: agent.voice for agent in agents_manager.get_all_agents()}
-
-    # 4. Initialize Azure TTS with viseme support
-    tts_engine = AzureTTS(
-        subscription_key="87MplLeDZRkxrDwt62jOVHtVyY7CWvJrz41zsUCYPg0c8dcMa5PYJQQJ99CCACqBBLyXJ3w3AAAYACOGnHn6",
-        region="southeastasia",
-        voice_map=voice_map,
+    # 3. Initialize local TTS (XTTS v2 + Rhubarb Lip Sync)
+    # Requires reference audio files in voices/ directory
+    # (e.g., voices/aristotle.wav, voices/sartre.wav, etc.)
+    tts_engine = LocalTTS(
+        voice_dir="voices",
         output_dir="tts_output",
-        auto_play=False  # Unity handles audio playback
     )
     tts_engine.clear_output()
 
-    # 4b. Initialize Azure STT (reuses same credentials)
+    # 4. Initialize Azure STT for voice input (to be replaced with local Whisper later)
     stt_engine = AzureSTT(
         subscription_key="87MplLeDZRkxrDwt62jOVHtVyY7CWvJrz41zsUCYPg0c8dcMa5PYJQQJ99CCACqBBLyXJ3w3AAAYACOGnHn6",
         region="southeastasia"

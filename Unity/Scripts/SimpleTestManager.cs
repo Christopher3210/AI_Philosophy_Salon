@@ -127,9 +127,10 @@ namespace PhilosophySalon
                 yield break;
             }
 
-            // Load audio file
+            // Load audio file (support both MP3 and WAV)
             string fileUrl = "file:///" + unityPath;
-            using (var www = UnityEngine.Networking.UnityWebRequestMultimedia.GetAudioClip(fileUrl, AudioType.MPEG))
+            AudioType audioType = unityPath.EndsWith(".wav", System.StringComparison.OrdinalIgnoreCase) ? AudioType.WAV : AudioType.MPEG;
+            using (var www = UnityEngine.Networking.UnityWebRequestMultimedia.GetAudioClip(fileUrl, audioType))
             {
                 yield return www.SendWebRequest();
 

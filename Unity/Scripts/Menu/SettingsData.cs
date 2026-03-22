@@ -59,6 +59,7 @@ public static class SettingsData
     public const string KEY_DEBATE_SPEED = "DebateSpeed";
     public const string KEY_CONVIVIALITY = "Conviviality";
     public const string KEY_TOPIC = "DebateTopic";
+    public const string KEY_DEBATE_DURATION = "DebateDuration";
 
     // Default values
     public const float DEFAULT_VOLUME = 0.8f;
@@ -66,6 +67,7 @@ public static class SettingsData
     public const float DEFAULT_SPEED = 1f;
     public const float DEFAULT_CONVIVIALITY = 0.5f;
     public const string DEFAULT_TOPIC = "What is the meaning of freedom?";
+    public const float DEFAULT_DURATION = 0f;  // 0 = unlimited
 
     // Get/Set Conviviality
     public static float Conviviality
@@ -79,5 +81,12 @@ public static class SettingsData
     {
         get { return PlayerPrefs.GetString(KEY_TOPIC, DEFAULT_TOPIC); }
         set { PlayerPrefs.SetString(KEY_TOPIC, value); PlayerPrefs.Save(); }
+    }
+
+    // Get/Set Debate Duration (minutes, 0 = unlimited)
+    public static float DebateDuration
+    {
+        get { return PlayerPrefs.GetFloat(KEY_DEBATE_DURATION, DEFAULT_DURATION); }
+        set { PlayerPrefs.SetFloat(KEY_DEBATE_DURATION, value); PlayerPrefs.Save(); }
     }
 }

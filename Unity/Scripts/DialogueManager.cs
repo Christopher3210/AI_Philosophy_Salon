@@ -110,9 +110,10 @@ namespace PhilosophySalon
             Debug.Log("[DialogueManager] Connected to backend");
             uiManager?.SetConnectionStatus(true);
 
-            // Send start_dialogue with topic and conviviality to backend
+            // Send start_dialogue with topic, conviviality, and duration to backend
             string topic = PlayerPrefs.GetString("DebateTopic", "What is the meaning of freedom?");
-            webSocketClient?.SendStartDialogue(topic, conviviality);
+            float durationMinutes = PlayerPrefs.GetFloat("DebateDuration", 0f);
+            webSocketClient?.SendStartDialogue(topic, conviviality, durationMinutes);
         }
 
         void OnDisconnected()
@@ -290,8 +291,9 @@ namespace PhilosophySalon
                 yield break;
             }
 
-            // Load audio file
-            using (var www = UnityEngine.Networking.UnityWebRequestMultimedia.GetAudioClip("file:///" + unityPath, AudioType.MPEG))
+            // Load audio file (support both MP3 and WAV)
+            AudioType audioType = unityPath.EndsWith(".wav", System.StringComparison.OrdinalIgnoreCase) ? AudioType.WAV : AudioType.MPEG;
+            using (var www = UnityEngine.Networking.UnityWebRequestMultimedia.GetAudioClip("file:///" + unityPath, audioType))
             {
                 yield return www.SendWebRequest();
 

@@ -113,12 +113,15 @@ async def _generate_answer(controller: 'UnityDialogueController', agent, questio
         turn=controller.speech_count
     )
 
-    # Wait for audio to finish - check for interrupt during wait
-    words = len(reply.split())
-    estimated_duration = max(2.0, words / 2.5)
-    print(f"[Unity] Waiting {estimated_duration:.1f}s for {agent.name} to finish speaking...")
+    # Wait for audio to finish - use actual duration from viseme data
+    if viseme_data:
+        last = viseme_data[-1]
+        audio_duration = last["time"] + last["duration"]
+    else:
+        audio_duration = max(2.0, len(reply.split()) / 2.5)
+    print(f"[Unity] Waiting {audio_duration:.1f}s for {agent.name} to finish speaking...")
 
-    sleep_remaining = estimated_duration
+    sleep_remaining = audio_duration
     while sleep_remaining > 0:
         await asyncio.sleep(min(0.5, sleep_remaining))
         sleep_remaining -= 0.5

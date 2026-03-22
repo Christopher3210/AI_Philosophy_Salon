@@ -294,14 +294,14 @@ namespace PhilosophySalon
             Debug.Log($"[WebSocket] Sent question: {question}");
         }
 
-        public async void SendStartDialogue(string topic, float conviviality)
+        public async void SendStartDialogue(string topic, float conviviality, float durationMinutes = 0f)
         {
             if (!isConnected) return;
             // Escape quotes in topic
             string escapedTopic = topic.Replace("\"", "\\\"");
-            string json = $"{{\"event\": \"start_dialogue\", \"data\": {{\"topic\": \"{escapedTopic}\", \"conviviality\": {conviviality}}}}}";
+            string json = $"{{\"event\": \"start_dialogue\", \"data\": {{\"topic\": \"{escapedTopic}\", \"conviviality\": {conviviality}, \"duration\": {durationMinutes}}}}}";
             await websocket.SendText(json);
-            Debug.Log($"[WebSocket] Sent start_dialogue - Topic: {topic}, Conviviality: {conviviality}");
+            Debug.Log($"[WebSocket] Sent start_dialogue - Topic: {topic}, Conviviality: {conviviality}, Duration: {durationMinutes}min");
         }
 
         public async void SendPause()

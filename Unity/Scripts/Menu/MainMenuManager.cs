@@ -23,6 +23,8 @@ public class MainMenuManager : MonoBehaviour
     private CanvasGroup fadeOverlay;
     private Slider convivialitySlider;
     private Text convivialityValueText;
+    private Slider durationSlider;
+    private Text durationValueText;
     private InputField topicInputField;
 
     void Start()
@@ -121,6 +123,28 @@ public class MainMenuManager : MonoBehaviour
         valueRect.anchorMax = new Vector2(1, 0.25f);
         valueRect.offsetMin = Vector2.zero;
         valueRect.offsetMax = Vector2.zero;
+
+        // Duration slider section
+        GameObject durationSection = UIFactory.CreateElement("DurationSection", mainMenuPanel);
+        UIFactory.SetRect(durationSection, 0.5f, 0.32f, 500, 80);
+
+        Text durationLabel = UIFactory.CreateText(durationSection, "DurationLabel", "Debate Duration",
+            18, SettingsData.SubtitleColor, TextAnchor.MiddleCenter);
+        RectTransform durLabelRect = durationLabel.GetComponent<RectTransform>();
+        durLabelRect.anchorMin = new Vector2(0, 0.6f);
+        durLabelRect.anchorMax = new Vector2(1, 1f);
+        durLabelRect.offsetMin = Vector2.zero;
+        durLabelRect.offsetMax = Vector2.zero;
+
+        durationSlider = CreateDurationSlider(durationSection);
+
+        durationValueText = UIFactory.CreateText(durationSection, "DurationValue", GetDurationLabel(SettingsData.DebateDuration),
+            16, SettingsData.TitleColor, TextAnchor.MiddleCenter);
+        RectTransform durValueRect = durationValueText.GetComponent<RectTransform>();
+        durValueRect.anchorMin = new Vector2(0, 0f);
+        durValueRect.anchorMax = new Vector2(1, 0.25f);
+        durValueRect.offsetMin = Vector2.zero;
+        durValueRect.offsetMax = Vector2.zero;
 
         // Button container
         GameObject buttonContainer = UIFactory.CreateElement("ButtonContainer", mainMenuPanel);
@@ -298,6 +322,78 @@ public class MainMenuManager : MonoBehaviour
         if (convivialityValueText != null)
         {
             convivialityValueText.text = GetConvivialityLabel(value);
+        }
+    }
+
+    private Slider CreateDurationSlider(GameObject parent)
+    {
+        GameObject sliderObj = UIFactory.CreateElement("DurationSlider", parent);
+        RectTransform sliderRect = sliderObj.GetComponent<RectTransform>();
+        sliderRect.anchorMin = new Vector2(0.1f, 0.25f);
+        sliderRect.anchorMax = new Vector2(0.9f, 0.55f);
+        sliderRect.offsetMin = Vector2.zero;
+        sliderRect.offsetMax = Vector2.zero;
+
+        GameObject bgObj = UIFactory.CreateElement("Background", sliderObj);
+        Image bgImage = bgObj.AddComponent<Image>();
+        bgImage.color = new Color(0.2f, 0.2f, 0.25f, 1f);
+        UIFactory.SetFullScreen(bgObj);
+
+        GameObject fillArea = UIFactory.CreateElement("FillArea", sliderObj);
+        RectTransform fillAreaRect = fillArea.GetComponent<RectTransform>();
+        fillAreaRect.anchorMin = new Vector2(0, 0.25f);
+        fillAreaRect.anchorMax = new Vector2(1, 0.75f);
+        fillAreaRect.offsetMin = new Vector2(5, 0);
+        fillAreaRect.offsetMax = new Vector2(-5, 0);
+
+        GameObject fill = UIFactory.CreateElement("Fill", fillArea);
+        Image fillImage = fill.AddComponent<Image>();
+        fillImage.color = SettingsData.TitleColor;
+        RectTransform fillRect = fill.GetComponent<RectTransform>();
+        fillRect.anchorMin = Vector2.zero;
+        fillRect.anchorMax = Vector2.one;
+        fillRect.offsetMin = Vector2.zero;
+        fillRect.offsetMax = Vector2.zero;
+
+        GameObject handleArea = UIFactory.CreateElement("HandleArea", sliderObj);
+        RectTransform handleAreaRect = handleArea.GetComponent<RectTransform>();
+        handleAreaRect.anchorMin = Vector2.zero;
+        handleAreaRect.anchorMax = Vector2.one;
+        handleAreaRect.offsetMin = new Vector2(10, 0);
+        handleAreaRect.offsetMax = new Vector2(-10, 0);
+
+        GameObject handle = UIFactory.CreateElement("Handle", handleArea);
+        Image handleImage = handle.AddComponent<Image>();
+        handleImage.color = Color.white;
+        RectTransform handleRect = handle.GetComponent<RectTransform>();
+        handleRect.sizeDelta = new Vector2(20, 0);
+
+        Slider slider = sliderObj.AddComponent<Slider>();
+        slider.fillRect = fillRect;
+        slider.handleRect = handleRect;
+        slider.targetGraphic = handleImage;
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.wholeNumbers = true;
+        slider.minValue = 0f;
+        slider.maxValue = 30f;
+        slider.value = SettingsData.DebateDuration;
+        slider.onValueChanged.AddListener(OnDurationChanged);
+
+        return slider;
+    }
+
+    private string GetDurationLabel(float minutes)
+    {
+        if (minutes <= 0) return "Unlimited";
+        return $"{(int)minutes} minutes";
+    }
+
+    private void OnDurationChanged(float value)
+    {
+        SettingsData.DebateDuration = value;
+        if (durationValueText != null)
+        {
+            durationValueText.text = GetDurationLabel(value);
         }
     }
 
