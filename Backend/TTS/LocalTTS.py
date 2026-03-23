@@ -5,6 +5,7 @@
 import asyncio
 import json
 import os
+import random
 import subprocess
 from datetime import datetime
 from typing import Dict, List, Tuple
@@ -89,6 +90,9 @@ class LocalTTS:
 
         # Cache speaker embeddings to avoid re-computing each call
         self._speaker_cache = {}
+
+        # Pre-generated filler clips per speaker: {name: [(audio_path, viseme_data), ...]}
+        self.fillers = {}
 
         os.makedirs(self.output_dir, exist_ok=True)
 
@@ -200,29 +204,25 @@ class LocalTTS:
         """Generate speech audio using XTTS v2 low-level API."""
         gpt_latents, speaker_embedding = self._get_speaker_latents(speaker_name)
 
-        chunks = self._split_text(text)
+        # Let XTTS handle splitting internally — avoids multi-chunk overhead
         all_wavs = []
 
-        for chunk in chunks:
-            out = self.model.inference(
-                text=chunk,
-                language="en",
-                gpt_cond_latent=gpt_latents,
-                speaker_embedding=speaker_embedding,
-                temperature=0.65,
-                speed=1.1,
-                enable_text_splitting=True,
-            )
-            wav = out["wav"]
-            if isinstance(wav, torch.Tensor):
-                wav = wav.cpu().numpy()
-            all_wavs.append(np.squeeze(wav))
-
-        # Concatenate all chunks
-        full_wav = np.concatenate(all_wavs) if len(all_wavs) > 1 else all_wavs[0]
+        out = self.model.inference(
+            text=text,
+            language="en",
+            gpt_cond_latent=gpt_latents,
+            speaker_embedding=speaker_embedding,
+            temperature=0.65,
+            speed=1.1,
+            enable_text_splitting=True,
+        )
+        wav = out["wav"]
+        if isinstance(wav, torch.Tensor):
+            wav = wav.cpu().numpy()
+        wav = np.squeeze(wav)
 
         # Save as WAV (24kHz, XTTS default sample rate)
-        sf.write(output_path, full_wav, 24000)
+        sf.write(output_path, wav, 24000)
 
     def _generate_visemes(self, audio_path: str) -> List[Dict]:
         """Run Rhubarb Lip Sync on audio file and return viseme data."""
@@ -340,6 +340,58 @@ class LocalTTS:
         return await loop.run_in_executor(
             None, self.speak, speaker_name, text, turn, index, is_qa
         )
+
+    def generate_fillers(self, speaker_names: List[str], count: int = 3):
+        """
+        Pre-generate filler clips for each speaker at startup.
+        These short clips fill the gap when pre-computation isn't ready.
+        """
+        filler_phrases = [
+            "Hmm, that is an interesting point.",
+            "Let me consider that for a moment.",
+            "Indeed, that raises an important question.",
+            "Well, I must think carefully about this.",
+            "That is a provocative claim.",
+            "I find myself compelled to respond to that.",
+            "Now that is worth examining more closely.",
+            "A fair point, but I wonder.",
+            "There is something to what you say.",
+            "I have been reflecting on precisely this.",
+            "That touches on something fundamental.",
+            "How curious, I was thinking along similar lines.",
+        ]
+
+        filler_dir = os.path.join(self.output_dir, "fillers")
+        os.makedirs(filler_dir, exist_ok=True)
+
+        for name in speaker_names:
+            self.fillers[name] = []
+            # Pick unique phrases for this speaker
+            chosen = random.sample(filler_phrases, min(count, len(filler_phrases)))
+
+            for i, phrase in enumerate(chosen):
+                fpath = os.path.join(filler_dir, f"{name.lower()}_filler_{i}.wav")
+                print(f"[LocalTTS] Generating filler {i+1}/{count} for {name}...")
+                try:
+                    self._generate_audio(name, phrase, fpath)
+                    visemes = self._generate_visemes(os.path.abspath(fpath))
+                    self.fillers[name].append({
+                        "audio_path": os.path.abspath(fpath),
+                        "viseme_data": visemes,
+                        "text": phrase,
+                    })
+                except Exception as e:
+                    print(f"[LocalTTS] Filler generation failed for {name}: {e}")
+
+            print(f"[LocalTTS] {len(self.fillers[name])} fillers ready for {name}")
+
+    def get_filler(self, speaker_name: str) -> dict | None:
+        """Get a random filler clip for a speaker. Returns None if none available."""
+        clips = self.fillers.get(speaker_name, [])
+        if not clips:
+            return None
+        import random
+        return random.choice(clips)
 
     def clear_output(self):
         """Delete all generated audio and viseme files."""

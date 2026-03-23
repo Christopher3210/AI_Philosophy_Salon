@@ -97,7 +97,7 @@ class UnityDialogueController:
 
         # Timed debate
         self.debate_duration = 0  # 0 = no limit (seconds)
-        self.debate_start_time = None
+        self.debate_elapsed = 0.0  # Accumulated audio playback time (seconds)
 
         # Sub-modules
         self.speaker_selector = SpeakerSelector(self.agents, self.history)
@@ -127,7 +127,7 @@ class UnityDialogueController:
         self.dialogue_topic = None
         self.current_topic = None
         self.debate_duration = 0
-        self.debate_start_time = None
+        self.debate_elapsed = 0.0
         self.logger = None
         self.agents = self.all_agents
         self.speaker_selector = SpeakerSelector(self.agents, self.history)
@@ -214,9 +214,8 @@ class UnityDialogueController:
         motivation_scores = {agent.name: agent.motivation_score for agent in self.agents}
         await self.ws_server.send_motivation_update(motivation_scores)
 
-        # Record debate start time
-        import time
-        self.debate_start_time = time.time()
+        # Reset debate timer
+        self.debate_elapsed = 0.0
         duration_str = f"{self.debate_duration // 60}m" if self.debate_duration > 0 else "unlimited"
         print(f"\n[Dialogue] Starting topic: {actual_topic} (duration: {duration_str})\n")
 

@@ -32,6 +32,10 @@ async def main():
     )
     tts_engine.clear_output()
 
+    # 3b. Pre-generate filler clips for each philosopher (fills thinking gaps)
+    speaker_names = [agent.name for agent in agents_manager.get_all_agents()]
+    tts_engine.generate_fillers(speaker_names)
+
     # 4. Initialize Azure STT for voice input (to be replaced with local Whisper later)
     stt_engine = AzureSTT(
         subscription_key="87MplLeDZRkxrDwt62jOVHtVyY7CWvJrz41zsUCYPg0c8dcMa5PYJQQJ99CCACqBBLyXJ3w3AAAYACOGnHn6",
