@@ -62,12 +62,17 @@ async def run_dialogue_loop(controller: 'UnityDialogueController'):
                 llm_prefetch = None
                 print(f"[Dialogue] Using pre-computed LLM for {llm_data['speaker'].name}")
             else:
+                print("[Dialogue] Generating first turn (LLM)...")
+                t_start = time.time()
                 llm_data = await _generate_llm(controller, topic)
+                print(f"[Dialogue] LLM done in {time.time()-t_start:.1f}s — {llm_data['speaker'].name}: {llm_data['reply'][:60]}...")
 
             # Show thinking + generate TTS
             await controller.ws_server.send_agent_speaking(llm_data['speaker'].name, controller.last_speaker)
+            t_tts = time.time()
             print(f"[Dialogue] Generating TTS for {llm_data['speaker'].name}...")
             audio_path, viseme_data = await controller.generate_speech(llm_data['speaker'].name, llm_data['reply'])
+            print(f"[Dialogue] TTS done in {time.time()-t_tts:.1f}s")
 
         speaker = llm_data['speaker']
         reply = llm_data['reply']
@@ -319,6 +324,8 @@ async def _generate_llm(controller: 'UnityDialogueController', topic: str) -> di
         f"{ref_instruction}"
         f"{invite_instruction}"
         f"- Do NOT say 'As {speaker.name}' or refer to yourself in third person.\n"
+        f"- When referencing your works, weave them naturally into speech (e.g., 'as I argued in my Nicomachean Ethics'). Do NOT use parenthetical citations, page numbers, book numbers, or academic reference formats.\n"
+        f"- Do NOT start your reply with labels like 'Reaction:', 'Rejection:', 'Response:', or any prefix. Just speak directly.\n"
     )
 
     # ── LLM generation ──
@@ -335,6 +342,9 @@ async def _generate_llm(controller: 'UnityDialogueController', topic: str) -> di
 
     reply = reply.replace("\n", " ").strip()
     reply = _clean_reply(reply, speaker.name)
+
+    # Remove LLM label prefixes like "Reaction:", "Rejection:", "Response:", etc.
+    reply = re.sub(r'^(Reaction|Rejection|Response|Reply|Answer|Observation|Rebuttal)\s*:\s*', '', reply, flags=re.IGNORECASE)
 
     # Trim to target sentence count
     sentences = re.split(r'(?<=[.!?])\s+', reply.strip())
