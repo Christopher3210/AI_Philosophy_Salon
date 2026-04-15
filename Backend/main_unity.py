@@ -7,7 +7,7 @@ import os
 from agents.agents_manager import AgentsManager
 from llm.local_model_manager import LocalModelManager as ModelManager
 from tts.LocalTTS import LocalTTS
-from tts.AzureSTT import AzureSTT
+from tts.LocalSTT import LocalSTT
 from unity_bridge import WebSocketServer
 from unity_controller import UnityDialogueController
 
@@ -36,11 +36,8 @@ async def main():
     speaker_names = [agent.name for agent in agents_manager.get_all_agents()]
     tts_engine.generate_fillers(speaker_names)
 
-    # 4. Initialize Azure STT for voice input (to be replaced with local Whisper later)
-    stt_engine = AzureSTT(
-        subscription_key="87MplLeDZRkxrDwt62jOVHtVyY7CWvJrz41zsUCYPg0c8dcMa5PYJQQJ99CCACqBBLyXJ3w3AAAYACOGnHn6",
-        region="southeastasia"
-    )
+    # 4. Initialize local STT (Whisper) for voice input — fully offline
+    stt_engine = LocalSTT(model_size="base", language="en")
 
     # 5. Start WebSocket server
     ws_server = WebSocketServer(host="localhost", port=8765)
